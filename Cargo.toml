@@ -1,0 +1,11 @@
+[package]
+name = "enginust"
+version = "0.1.0"
+edition = "2021"
+
+[workspaces]
+members = [
+    "crates/*"
+]
+
+[dependencies]
