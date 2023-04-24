@@ -6,6 +6,8 @@ use std::cell::RefMut;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+pub use ecs_macros::Component;
+
 use crate::archetypes::ArchetypeStorage;
 
 pub trait Component: Any {}

@@ -8,8 +8,8 @@ use crate::entity::Entity;
 /// World is our database
 #[derive(Debug)]
 pub struct World {
-    pub entities: Entities,
-    pub archetypes: Archetypes,
+    pub(crate) entities: Entities,
+    pub(crate) archetypes: Archetypes,
 }
 
 impl World {

@@ -43,7 +43,7 @@ impl ArchetypeStorage {
         }
     }
 
-    pub(crate) fn init_component<T: Component>(&mut self, component: T) -> usize {
+    pub fn init_component<T: Component>(&mut self, component: T) -> usize {
         let type_id = TypeId::of::<T>();
 
         let row_index = match self.components.entry(type_id) {
