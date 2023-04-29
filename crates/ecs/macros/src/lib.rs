@@ -15,6 +15,10 @@ pub fn derive_component(input: TokenStream) -> TokenStream {
         impl #path::component::Component for #struct_name {}
 
         impl #path::component::Bundle for #struct_name {
+            fn components_ids() -> Vec<std::any::TypeId> {
+                vec![ std::any::TypeId::of::<#struct_name>() ]
+            }
+
             fn components(
                 self,
                 storage: &mut #path::archetypes::ArchetypeStorage,

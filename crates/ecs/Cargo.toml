@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 ecs_macros = { path = "macros" }
+thiserror = "1.0.40"
