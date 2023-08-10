@@ -30,7 +30,7 @@ pub trait Query {
     fn component_id() -> Vec<TypeId>;
 
     /// Initiate the [`State`] from the [`World`] and corresponding [`Archetype`]
-    fn init_state<'s>(world: &'s World, archetype: Archetype) -> Self::State<'s>;
+    fn init_state(world: &World, archetype: Archetype) -> Self::State<'_>;
 
     /// Fetch the actual [`Item`] of an specific [`Entity`] from the [`State`].
     fn fetch<'s>(
@@ -47,9 +47,7 @@ impl Query for Entity {
         vec![]
     }
 
-    fn init_state<'s>(_world: &'s World, _archetype: Archetype) -> Self::State<'s> {
-        ()
-    }
+    fn init_state(_world: &World, _archetype: Archetype) -> Self::State<'_> {}
 
     fn fetch<'s>(
         _state: &mut Self::State<'s>,
@@ -67,7 +65,7 @@ impl<T: Component> Query for &T {
         vec![TypeId::of::<T>()]
     }
 
-    fn init_state<'w>(world: &'w World, archetype: Archetype) -> Self::State<'w> {
+    fn init_state(world: &World, archetype: Archetype) -> Self::State<'_> {
         world.archetypes.get(archetype)
     }
 
@@ -89,7 +87,7 @@ impl<T: Component> Query for &mut T {
         vec![TypeId::of::<T>()]
     }
 
-    fn init_state<'w>(world: &'w World, archetype: Archetype) -> Self::State<'w> {
+    fn init_state(world: &World, archetype: Archetype) -> Self::State<'_> {
         world.archetypes.get(archetype)
     }
 
@@ -122,7 +120,7 @@ macro_rules! query_tuple_impl {
                     .collect()
             }
 
-            fn init_state<'w>(world: &'w World, archetype: Archetype) -> Self::State<'w> {
+            fn init_state(world: & World, archetype: Archetype) -> Self::State<'_> {
                 ( $( $name::init_state(world, archetype), )* )
             }
 
