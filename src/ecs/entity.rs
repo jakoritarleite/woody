@@ -6,7 +6,7 @@ use super::archetypes::Archetype;
 pub type Entity = u64;
 
 /// Collection of entities that are in the world
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Entities {
     pub counter: Entity,
     pub entities: HashMap<Entity, EntityDataPointer>,

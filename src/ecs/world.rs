@@ -7,7 +7,7 @@ use super::query::state::QueryState;
 use super::query::Query;
 
 /// World is our database
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct World {
     pub(crate) entities: Entities,
     pub(crate) archetypes: Archetypes,

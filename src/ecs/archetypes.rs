@@ -7,12 +7,12 @@ use super::component::{Bundle, Component, ComponentStorage, Components};
 pub type Archetype = u128;
 
 /// Archetypes are ours tables in the World (database)
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Archetypes {
     storages: HashMap<Archetype, ArchetypeStorage>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ArchetypeStorage {
     components: Components,
     components_ids: Vec<TypeId>,
