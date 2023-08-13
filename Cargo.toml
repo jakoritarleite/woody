@@ -1,11 +1,14 @@
 [package]
-name = "enginust"
+name = "woody"
 version = "0.1.0"
 edition = "2021"
 
-[workspaces]
-members = [
-    "crates/*"
-]
-
 [dependencies]
+ecs_macros = { path = "macros/ecs" }
+nalgebra-glm = "0.18.0"
+vulkanalia = { version = "0.21.0", features = ["window", "libloading"] }
+winit = "0.28.6"
+onlyerror = "0.1.3"
+
+[build-dependencies]
+shaderc = "0.8.2"
