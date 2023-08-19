@@ -67,7 +67,7 @@ impl ErasedComponentData {
     }
 }
 
-fn downcast_ref<'w, T: Any>(cell: &'w RefCell<dyn Any>) -> Option<Ref<'w, T>> {
+fn downcast_ref<T: Any>(cell: &RefCell<dyn Any>) -> Option<Ref<'_, T>> {
     let r = cell.borrow();
 
     if (*r).type_id() == TypeId::of::<T>() {
@@ -77,7 +77,7 @@ fn downcast_ref<'w, T: Any>(cell: &'w RefCell<dyn Any>) -> Option<Ref<'w, T>> {
     None
 }
 
-fn downcast_mut<'w, T: Any>(cell: &'w RefCell<dyn Any>) -> Option<RefMut<'w, T>> {
+fn downcast_mut<T: Any>(cell: &RefCell<dyn Any>) -> Option<RefMut<'_, T>> {
     let r = cell.borrow_mut();
 
     if (*r).type_id() == TypeId::of::<T>() {
