@@ -42,15 +42,13 @@ impl ComponentStorage {
     pub(crate) fn get<T: Component>(&self, row_index: usize) -> Option<Ref<'_, T>> {
         self.data
             .get(row_index)
-            .map(|erased_data| erased_data.cast_ref())
-            .flatten()
+            .and_then(|erased_data| erased_data.cast_ref())
     }
 
     pub(crate) fn get_mut<T: Component>(&self, row_index: usize) -> Option<RefMut<'_, T>> {
         self.data
             .get(row_index)
-            .map(|erased_data| erased_data.cast_mut())
-            .flatten()
+            .and_then(|erased_data| erased_data.cast_mut())
     }
 }
 

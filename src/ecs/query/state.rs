@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use thiserror::Error;
 
 use crate::ecs::{
-    archetypes::archetype_from_type_ids,
+    archetypes::Archetypes,
     entity::{Entity, EntityDataPointer},
     world::World,
 };
@@ -18,7 +18,7 @@ pub struct QueryState<'s, Q: Query> {
 
 impl<'w, Q: Query> QueryState<'w, Q> {
     pub fn new(world: &'w mut World) -> Self {
-        let archetype = archetype_from_type_ids(&Q::component_id());
+        let archetype = Archetypes::archetype_from_type_ids(&Q::component_id());
         let entities: HashMap<_, _> = world
             .entities
             .entities_by_archetype(archetype)

@@ -1,4 +1,3 @@
-use super::archetypes::archetype_from_type_ids;
 use super::archetypes::Archetypes;
 use super::component::Bundle;
 use super::entity::Entities;
@@ -28,8 +27,7 @@ impl World {
     {
         let components_ids = B::components_ids();
 
-        let archetype = archetype_from_type_ids(&components_ids);
-
+        let archetype = Archetypes::archetype_from_type_ids(&components_ids);
         let archetype_storage = self.archetypes.init_storage(archetype, &components_ids);
 
         let mut entity_row_index = 0;
@@ -50,7 +48,10 @@ impl World {
 mod test {
     use std::any::TypeId;
 
-    use crate::ecs::component::{Bundle, Component};
+    use crate::ecs::{
+        archetypes::Archetypes,
+        component::{Bundle, Component},
+    };
 
     use super::World;
 
@@ -130,9 +131,15 @@ mod test {
         assert!(world.entities.entities.len() == 4);
         assert!(world.archetypes.len() == 2);
 
-        let pos_vel_archetype_storage = world.archetypes.get_from_bundle::<(Position, Velocity)>();
-        let pos_archetype_storage = world.archetypes.get_from_bundle::<Position>();
-        let vel_archetype_storage = world.archetypes.get_from_bundle::<Velocity>();
+        let pos_vel_archetype_storage = world
+            .archetypes
+            .get(Archetypes::archetype_from_bundle::<(Position, Velocity)>());
+        let pos_archetype_storage = world
+            .archetypes
+            .get(Archetypes::archetype_from_bundle::<Position>());
+        let vel_archetype_storage = world
+            .archetypes
+            .get(Archetypes::archetype_from_bundle::<Velocity>());
 
         assert!(pos_vel_archetype_storage.is_some());
         assert!(pos_archetype_storage.is_some());
