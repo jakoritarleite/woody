@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use onlyerror::Error;
+use thiserror::Error;
 
 use crate::ecs::{
     archetypes::archetype_from_type_ids,
