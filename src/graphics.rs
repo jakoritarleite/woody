@@ -103,17 +103,18 @@ use winit::event_loop::EventLoop;
 use winit::window::Window;
 use winit::window::WindowBuilder;
 
-use self::vertex::ColoredVertex;
+use self::vertex::Vertex;
 use self::vertex_shader::UniformBufferObject;
 
+pub mod mesh;
 mod vertex;
 
 lazy_static! {
-    pub(crate) static ref VERTICES: Vec<ColoredVertex> = vec![
-        ColoredVertex::new(vec2(-0.5, -0.5), vec3(1.0, 0.0, 0.0)),
-        ColoredVertex::new(vec2(0.5, -0.5), vec3(0.0, 1.0, 0.0)),
-        ColoredVertex::new(vec2(0.5, 0.5), vec3(0.0, 0.0, 1.0)),
-        ColoredVertex::new(vec2(-0.5, 0.5), vec3(1.0, 1.0, 1.0)),
+    pub(crate) static ref VERTICES: Vec<Vertex> = vec![
+        Vertex::new(vec2(-0.5, -0.5), vec3(1.0, 0.0, 0.0)),
+        Vertex::new(vec2(0.5, -0.5), vec3(0.0, 1.0, 0.0)),
+        Vertex::new(vec2(0.5, 0.5), vec3(0.0, 0.0, 1.0)),
+        Vertex::new(vec2(-0.5, 0.5), vec3(1.0, 1.0, 1.0)),
     ];
 }
 
@@ -148,7 +149,7 @@ pub struct Renderer {
 
     pub(crate) command_pool: CommandPool,
 
-    pub(crate) vertex_subbuffer: Subbuffer<[ColoredVertex]>,
+    pub(crate) vertex_subbuffer: Subbuffer<[Vertex]>,
     pub(crate) index_buffer: IndexBuffer,
 
     pub(crate) uniform_buffers: Vec<Subbuffer<UniformBufferObject>>,
@@ -686,8 +687,8 @@ impl Renderer {
         let frag_stage = PipelineShaderStageCreateInfo::new(frag_sader_entry_point);
 
         // TODO check if its correct
-        let binding_descriptions = vec![ColoredVertex::binding_description()];
-        let attribute_descriptions = ColoredVertex::attribute_descriptions();
+        let binding_descriptions = vec![Vertex::binding_description()];
+        let attribute_descriptions = Vertex::attribute_descriptions();
 
         let vertex_input_state = VertexInputState::new()
             .bindings(binding_descriptions)

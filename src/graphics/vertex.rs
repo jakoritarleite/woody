@@ -3,21 +3,21 @@ use bytemuck::Zeroable;
 use nalgebra_glm::Vec2;
 use nalgebra_glm::Vec3;
 use vulkano::format::Format;
-use vulkano::pipeline::graphics::vertex_input::Vertex;
+use vulkano::pipeline::graphics::vertex_input::Vertex as VulkanoVertex;
 use vulkano::pipeline::graphics::vertex_input::VertexInputAttributeDescription;
 use vulkano::pipeline::graphics::vertex_input::VertexInputBindingDescription;
 use vulkano::pipeline::graphics::vertex_input::VertexInputRate;
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy, Vertex)]
-pub(crate) struct ColoredVertex {
+#[derive(Debug, Clone, Copy, VulkanoVertex)]
+pub(crate) struct Vertex {
     #[format(R32G32_SFLOAT)]
     position: Vec2,
     #[format(R32G32B32_SFLOAT)]
     color: Vec3,
 }
 
-impl ColoredVertex {
+impl Vertex {
     pub fn new(position: Vec2, color: Vec3) -> Self {
         Self { position, color }
     }
@@ -49,10 +49,10 @@ impl ColoredVertex {
     }
 }
 
-unsafe impl Zeroable for ColoredVertex {}
+unsafe impl Zeroable for Vertex {}
 
-unsafe impl Zeroable for &ColoredVertex {}
+unsafe impl Zeroable for &Vertex {}
 
-unsafe impl Pod for ColoredVertex {}
+unsafe impl Pod for Vertex {}
 
-unsafe impl<'a: 'static> Pod for &'a ColoredVertex {}
+unsafe impl<'a: 'static> Pod for &'a Vertex {}
