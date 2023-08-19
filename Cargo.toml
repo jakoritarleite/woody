@@ -6,9 +6,14 @@ edition = "2021"
 [dependencies]
 ecs_macros = { path = "macros/ecs" }
 nalgebra-glm = "0.18.0"
-vulkanalia = { version = "0.21.0", features = ["window", "libloading"] }
 winit = "0.28.6"
-onlyerror = "0.1.3"
+thiserror = "1.0.44"
+vulkano = { git = "https://github.com/vulkano-rs/vulkano", branch = "master" }
+vulkano-win = { git = "https://github.com/vulkano-rs/vulkano", branch = "master" }
+vulkano-shaders = { git = "https://github.com/vulkano-rs/vulkano", branch = "master" }
+bytemuck = "1.13.1"
+lazy_static = "1.4.0"
+ahash = "0.8.3"
 
 [build-dependencies]
 shaderc = "0.8.2"
