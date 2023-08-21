@@ -10,3 +10,4 @@ void main() {
 
     outColor = vec4(fragColor.rgb, alpha);
 }
+

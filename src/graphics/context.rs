@@ -220,8 +220,8 @@ impl Graphics {
             render_pass.clone(),
         )?;
 
-        let triangle_vertex_shader = vertex_shader::load(vulkan_ctx.device.clone())?;
-        let triangle_fragment_shader = fragment_shader::load(vulkan_ctx.device.clone())?;
+        let triangle_vertex_shader = triangle_vertex_shader::load(vulkan_ctx.device.clone())?;
+        let triangle_fragment_shader = triangle_fragment_shader::load(vulkan_ctx.device.clone())?;
 
         let (triangle_pipeline, triangle_pipeline_layout) = Self::create_triangle_pipeline(
             vulkan_ctx.device.clone(),
@@ -382,16 +382,16 @@ impl Debug for Graphics {
     }
 }
 
-mod vertex_shader {
+mod triangle_vertex_shader {
     vulkano_shaders::shader! {
         ty: "vertex",
-        path: "src/shaders/shader.vert",
+        path: "src/shaders/triangle/shader.vert",
     }
 }
 
-mod fragment_shader {
+mod triangle_fragment_shader {
     vulkano_shaders::shader! {
         ty: "fragment",
-        path: "src/shaders/shader.frag",
+        path: "src/shaders/triangle/shader.frag",
     }
 }
