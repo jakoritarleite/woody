@@ -8,7 +8,8 @@ use winit::event_loop::EventLoop;
 
 use crate::ecs::world::World;
 use crate::graphics;
-use crate::graphics::Renderer;
+use crate::graphics::context::Graphics;
+// use crate::graphics::Renderer;
 
 pub struct App {
     pub world: World,
@@ -17,27 +18,22 @@ pub struct App {
     // TODO create basic mesh components such as Rectangle, Circle, Line, etc
     // and create systems that draws those meshes using our renderer
     //
-    // draw_systems: Vec<Box<dyn Fn(&mut World, &mut Renderer)>>
-    renderer: Renderer,
+    // draw_systems: Vec<Box<dyn Fn(&mut World, &mut Renderer)>>,
+    graphics: Graphics,
 }
 
 impl App {
     /// Creates a new App.
     pub fn new() -> Result<(Self, EventLoop<()>), Error> {
         let event_loop = EventLoop::new();
-        let renderer = match Renderer::new(&event_loop) {
-            Ok(renderer) => renderer,
-            Err(err) => {
-                dbg!(&err);
-                return Err(Error::Renderer(err));
-            }
-        };
+        // TODO handle error
+        let graphics = Graphics::new(&event_loop).unwrap();
 
         Ok((
             Self {
                 world: World::new(),
                 update_systems: vec![],
-                renderer,
+                graphics,
             },
             event_loop,
         ))
@@ -65,8 +61,9 @@ impl App {
             match event {
                 Event::MainEventsCleared if !minimized => {
                     self.run_systems();
-                    self.renderer.render().unwrap();
-                    self.renderer.perspective_angle += 1.0;
+                    self.graphics.draw().unwrap();
+                    // self.renderer.render().unwrap();
+                    // self.renderer.perspective_angle += 1.0;
                 }
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::CloseRequested => {
@@ -78,7 +75,7 @@ impl App {
                             minimized = true;
                         } else {
                             minimized = false;
-                            self.renderer.recreate_swapchain = true;
+                            self.graphics.recreate_swapchain = true;
                         }
                     }
 
@@ -95,13 +92,13 @@ impl fmt::Debug for App {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("App")
             .field("world", &self.world)
-            .field("renderer", &self.renderer)
+            .field("renderer", &self.graphics)
             .finish()
     }
 }
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Could not create window: {0}")]
-    Renderer(#[from] graphics::RendererError),
+    //#[error("Could not create window: {0}")]
+    // Renderer(#[from] graphics::GraphicsError),
 }
