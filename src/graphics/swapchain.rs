@@ -113,6 +113,11 @@ impl Graphics {
         self.swapchain_image_views =
             Self::create_swapchain_image_views(self.swapchain.clone(), &self.swapchain_images)?;
 
+        self.viewport.extent = [
+            self.swapchain.image_extent()[0] as f32,
+            self.swapchain.image_extent()[1] as f32,
+        ];
+
         self.framebuffers = Self::create_framebuffers(
             self.swapchain.clone(),
             &self.swapchain_image_views,

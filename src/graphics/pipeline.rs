@@ -113,20 +113,6 @@ impl Graphics {
         vertex_shader: Arc<ShaderModule>,
         fragment_shader: Arc<ShaderModule>,
     ) -> Result<(Arc<GraphicsPipeline>, Arc<PipelineLayout>), GraphicsError> {
-        let viewport = Viewport {
-            offset: [0.0, 0.0],
-            extent: [
-                swapchain.image_extent()[0] as f32,
-                swapchain.image_extent()[1] as f32,
-            ],
-            depth_range: 0f32..=1f32,
-        };
-
-        let scissor = Scissor {
-            offset: [0, 0],
-            extent: swapchain.image_extent(),
-        };
-
         let shader_stages = vec![
             Self::create_pipeline_shader_stage_create_info(vertex_shader)?,
             Self::create_pipeline_shader_stage_create_info(fragment_shader)?,
@@ -135,7 +121,7 @@ impl Graphics {
         let vertex_input_state = Self::create_pipeline_vertex_input_state();
         let input_assembly_state =
             Self::create_pipeline_input_assembly_state(PrimitiveTopology::TriangleList);
-        let viewport_state = ViewportState::viewport_fixed_scissor_fixed(vec![(viewport, scissor)]);
+        // let viewport_state = ViewportState::viewport_fixed_scissor_fixed(vec![(viewport, scissor)]);
         let rasterization_state = Self::create_pipeline_rasterization_state(PolygonMode::Fill);
         let multisampling_state = Self::create_pipeline_multisampling_state();
         let color_blend_attachment_state = Self::create_pipeline_color_blend_attachment_state();
@@ -158,7 +144,8 @@ impl Graphics {
                 stages: shader_stages.into(),
                 vertex_input_state: Some(vertex_input_state),
                 input_assembly_state: Some(input_assembly_state),
-                viewport_state: Some(viewport_state),
+                // viewport_state: Some(viewport_state),
+                viewport_state: Some(ViewportState::viewport_dynamic_scissor_irrelevant()),
                 rasterization_state: Some(rasterization_state),
                 multisample_state: Some(multisampling_state),
                 color_blend_state: Some(color_blend_state),

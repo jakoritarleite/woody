@@ -22,6 +22,7 @@ use vulkano::image::Image;
 use vulkano::instance::Instance;
 use vulkano::instance::InstanceCreateInfo;
 use vulkano::memory::allocator::StandardMemoryAllocator;
+use vulkano::pipeline::graphics::viewport::Viewport;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::pipeline::PipelineLayout;
 use vulkano::render_pass::Framebuffer;
@@ -175,6 +176,9 @@ pub struct Graphics {
     pub(super) render_pass: Arc<RenderPass>,
     pub(super) framebuffers: Vec<Arc<Framebuffer>>,
 
+    /// Dynamic viewport used when we resize window.
+    pub(super) viewport: Viewport,
+
     /// Shaders for our triangle geometries.
     ///
     /// For now all geometries uses this shaders, but in future we may have different shaders for
@@ -222,6 +226,15 @@ impl Graphics {
             render_pass.clone(),
         )?;
 
+        let viewport = Viewport {
+            offset: [0.0, 0.0],
+            extent: [
+                swapchain.image_extent()[0] as f32,
+                swapchain.image_extent()[1] as f32,
+            ],
+            depth_range: 0f32..=1f32,
+        };
+
         let triangle_vertex_shader = triangle_vertex_shader::load(vulkan_ctx.device.clone())?;
         let triangle_fragment_shader = triangle_fragment_shader::load(vulkan_ctx.device.clone())?;
 
@@ -246,6 +259,7 @@ impl Graphics {
             command_buffer_allocator,
             render_pass,
             framebuffers,
+            viewport,
             triangle_vertex_shader,
             triangle_fragment_shader,
             triangle_pipeline,
@@ -310,6 +324,7 @@ impl Graphics {
             .bind_pipeline_graphics(self.triangle_pipeline.clone())?
             .draw(3, 1, 0, 0)?
             .end_render_pass(SubpassEndInfo::default())?;
+            .set_viewport(0, [self.viewport.clone()].into_iter().collect())?;
 
         let command_buffer = builder.build()?;
 
