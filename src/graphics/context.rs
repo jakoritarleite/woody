@@ -41,6 +41,8 @@ use winit::event_loop::EventLoop;
 use winit::window::Window;
 use winit::window::WindowBuilder;
 
+use super::GraphicsError;
+
 /// Vulkan graphics context.
 #[derive(Debug)]
 pub struct VulkanContext {
@@ -266,6 +268,7 @@ impl Graphics {
 
         if self.recreate_swapchain {
             self.recretate_swapchain()?;
+            self.recreate_swapchain = false;
         }
 
         let (image_index, suboptimal, acquire_future) =
@@ -339,41 +342,6 @@ impl Graphics {
 
         Ok(())
     }
-}
-
-#[derive(Debug, Error)]
-pub enum GraphicsError {
-    /// Error that happens when creating a window.
-    #[error("Could not create Window: {0}")]
-    WindowCreation(#[from] winit::error::OsError),
-
-    /// Error that happens when loading Vulkan library.
-    #[error("Could not load Vulkan library: {0}")]
-    LibraryLoading(#[from] vulkano::LoadingError),
-
-    #[error("Could not validate: {0}")]
-    VulkanValidation(#[from] vulkano::Validated<vulkano::VulkanError>),
-
-    #[error("Vulkan runtime error: {0}")]
-    Vulkan(#[from] vulkano::VulkanError),
-
-    #[error("Could not find any suitable physical device")]
-    NoSuitablePhysicalDevice,
-
-    #[error("Could not create needed devices queues.")]
-    NoDeviceQueues,
-
-    #[error("Synchronization mechanism wasn't initialized due to an unknown reason.")]
-    SynchronizationNotInitialized,
-
-    #[error("Validation error: {0}")]
-    Validation(#[from] Box<vulkano::ValidationError>),
-
-    #[error("Error executing command buffer: {0}")]
-    CommandBufferExecution(#[from] vulkano::command_buffer::CommandBufferExecError),
-
-    #[error("Could not find shader entry point: {0}")]
-    WrongShaderEntryPoint(&'static str),
 }
 
 impl Debug for Graphics {

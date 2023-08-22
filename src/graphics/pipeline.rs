@@ -30,9 +30,8 @@ use vulkano::shader::ShaderModule;
 use vulkano::swapchain::Swapchain;
 
 use super::context::Graphics;
-use super::context::GraphicsError;
-// use super::fragment_shader;
 use super::vertex::Vertex;
+use super::GraphicsError;
 
 impl Graphics {
     /// Creates a [PipelineShaderStageCreateInfo](https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkPipelineShaderStageCreateInfo.html) for a specific shader module.

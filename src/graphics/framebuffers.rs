@@ -7,7 +7,7 @@ use vulkano::render_pass::RenderPass;
 use vulkano::swapchain::Swapchain;
 
 use super::context::Graphics;
-use super::context::GraphicsError;
+use super::GraphicsError;
 
 impl Graphics {
     /// Creates [Framebuffers](https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkFramebuffer.html) correspoding to the swapchain image views.

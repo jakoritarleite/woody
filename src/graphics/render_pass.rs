@@ -6,7 +6,7 @@ use vulkano::render_pass::RenderPass;
 use vulkano::swapchain::Swapchain;
 
 use super::context::Graphics;
-use super::context::GraphicsError;
+use super::GraphicsError;
 
 impl Graphics {
     /// Creates a [Render Pass](https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkRenderPass.html).

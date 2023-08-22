@@ -18,7 +18,7 @@ use vulkano::sync::Sharing;
 use winit::window::Window;
 
 use super::context::Graphics;
-use super::context::GraphicsError;
+use super::GraphicsError;
 
 impl Graphics {
     /// Creates a swapchain.
@@ -47,7 +47,7 @@ impl Graphics {
             .unwrap_or(PresentMode::Fifo);
 
         let (swapchain, images) = Swapchain::new(
-            device.clone(),
+            device,
             surface,
             SwapchainCreateInfo {
                 min_image_count: surface_capabilities.min_image_count.max(2),
