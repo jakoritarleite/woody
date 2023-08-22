@@ -48,8 +48,8 @@ impl Graphics {
     /// Creates a VertexInputState.
     pub fn create_pipeline_vertex_input_state() -> VertexInputState {
         VertexInputState::new()
-        //.bindings(vec![Vertex::binding_description()])
-        //.attributes(Vertex::attribute_descriptions())
+            .bindings(vec![Vertex::binding_description()])
+            .attributes(Vertex::attribute_descriptions())
     }
 
     /// Creates a InputAssemblyState.
