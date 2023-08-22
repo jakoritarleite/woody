@@ -1,6 +1,8 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use nalgebra_glm::vec2;
+use nalgebra_glm::vec3;
 use thiserror::Error;
 use vulkano::command_buffer::allocator::StandardCommandBufferAllocator;
 use vulkano::command_buffer::AutoCommandBufferBuilder;
@@ -42,6 +44,10 @@ use winit::event_loop::EventLoop;
 use winit::window::Window;
 use winit::window::WindowBuilder;
 
+use super::mesh::IntoMesh;
+use super::mesh::Mesh;
+use super::mesh::Rectangle;
+use super::vertex::Vertex;
 use super::GraphicsError;
 
 /// Vulkan graphics context.
@@ -190,6 +196,9 @@ pub struct Graphics {
     triangle_pipeline: Arc<GraphicsPipeline>,
     triangle_pipeline_layout: Arc<PipelineLayout>,
 
+    /// List of meshes.
+    pub(crate) meshes: Vec<Mesh>,
+
     /// Vulkano Synchronization mechanism.
     sync: Option<Box<dyn GpuFuture>>,
 }
@@ -264,6 +273,7 @@ impl Graphics {
             triangle_fragment_shader,
             triangle_pipeline,
             triangle_pipeline_layout,
+            meshes: vec![],
             sync,
         })
     }
@@ -321,10 +331,28 @@ impl Graphics {
                     ..Default::default()
                 },
             )?
-            .bind_pipeline_graphics(self.triangle_pipeline.clone())?
-            .draw(3, 1, 0, 0)?
-            .end_render_pass(SubpassEndInfo::default())?;
             .set_viewport(0, [self.viewport.clone()].into_iter().collect())?;
+
+        for mesh in self.meshes.iter() {
+            builder
+                // TODO set a specific pipeline for Mesh type
+                //
+                // Idea:
+                //
+                // enum MeshPipeline { Triangle, Circle };
+                // struct Mesh { pipeline: MeshPipeline, ... };
+                //
+                // .bind_pipeline_graphics(match mesh.pipeline {
+                //      MeshPipeline::Triangle => self.triangle_pipeline.clone(),
+                //      MeshPipeline::Circle => self.circle_pipeline.clone(),
+                // })?;
+                .bind_pipeline_graphics(self.triangle_pipeline.clone())?
+                .bind_vertex_buffers(0, mesh.vbuffer.clone())?
+                .bind_index_buffer(mesh.ibuffer.clone())?
+                .draw_indexed(mesh.index_count as u32, 1, 0, 0, 0)?;
+        }
+
+        builder.end_render_pass(SubpassEndInfo::default())?;
 
         let command_buffer = builder.build()?;
 
