@@ -16,6 +16,10 @@ impl Graphics {
         swapchain_image_views: &[Arc<ImageView>],
         render_pass: Arc<RenderPass>,
     ) -> Result<Vec<Arc<Framebuffer>>, GraphicsError> {
+        //println!(
+        //    "Creating framebuffers with image_extent: ( {:?} )",
+        //    swapchain.image_extent()
+        //);
         let framebuffers = swapchain_image_views
             .iter()
             .map(|view| {

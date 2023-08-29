@@ -1,6 +1,10 @@
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use vulkano::descriptor_set::layout::DescriptorSetLayout;
+use vulkano::descriptor_set::layout::DescriptorSetLayoutBinding;
+use vulkano::descriptor_set::layout::DescriptorSetLayoutCreateInfo;
+use vulkano::descriptor_set::layout::DescriptorType;
 use vulkano::device;
 use vulkano::device::Device;
 use vulkano::image::SampleCount;
@@ -26,6 +30,7 @@ use vulkano::pipeline::PipelineShaderStageCreateInfo;
 use vulkano::pipeline::StateMode;
 use vulkano::render_pass::RenderPass;
 use vulkano::render_pass::Subpass;
+use vulkano::shader::DescriptorBindingRequirements;
 use vulkano::shader::ShaderModule;
 use vulkano::swapchain::Swapchain;
 
@@ -102,8 +107,24 @@ impl Graphics {
         }
     }
 
-    fn create_descriptor_set_layout() -> Result<Arc<DescriptorSetLayout>, GraphicsError> {
-        todo!()
+    fn create_ubo_descriptor_set_layout(
+        device: Arc<Device>,
+        swapchain: Arc<Swapchain>,
+    ) -> Result<Arc<DescriptorSetLayout>, GraphicsError> {
+        let requirements = DescriptorBindingRequirements {
+            descriptor_types: vec![DescriptorType::UniformBuffer],
+            ..Default::default()
+        };
+
+        let binding = DescriptorSetLayoutBinding::from(&requirements);
+
+        Ok(DescriptorSetLayout::new(
+            device,
+            DescriptorSetLayoutCreateInfo {
+                bindings: BTreeMap::from([(0, binding)]),
+                ..Default::default()
+            },
+        )?)
     }
 
     pub fn create_triangle_pipeline(
@@ -121,7 +142,6 @@ impl Graphics {
         let vertex_input_state = Self::create_pipeline_vertex_input_state();
         let input_assembly_state =
             Self::create_pipeline_input_assembly_state(PrimitiveTopology::TriangleList);
-        // let viewport_state = ViewportState::viewport_fixed_scissor_fixed(vec![(viewport, scissor)]);
         let rasterization_state = Self::create_pipeline_rasterization_state(PolygonMode::Fill);
         let multisampling_state = Self::create_pipeline_multisampling_state();
         let color_blend_attachment_state = Self::create_pipeline_color_blend_attachment_state();
@@ -132,7 +152,10 @@ impl Graphics {
             device.clone(),
             PipelineLayoutCreateInfo {
                 // TODO create descriptor set for our triangle pipeline.
-                // set_layouts: vec![Self::create_descriptor_set_layout()]
+                //set_layouts: vec![Self::create_ubo_descriptor_set_layout(
+                //    device.clone(),
+                //    swapchain,
+                //)?],
                 ..Default::default()
             },
         )?;
@@ -144,7 +167,6 @@ impl Graphics {
                 stages: shader_stages.into(),
                 vertex_input_state: Some(vertex_input_state),
                 input_assembly_state: Some(input_assembly_state),
-                // viewport_state: Some(viewport_state),
                 viewport_state: Some(ViewportState::viewport_dynamic_scissor_irrelevant()),
                 rasterization_state: Some(rasterization_state),
                 multisample_state: Some(multisampling_state),

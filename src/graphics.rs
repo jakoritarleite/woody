@@ -1,5 +1,6 @@
 use thiserror::Error;
 
+pub mod camera;
 pub mod context;
 mod framebuffers;
 pub mod mesh;

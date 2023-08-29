@@ -168,6 +168,7 @@ pub struct Graphics {
     pub(super) swapchain: Arc<Swapchain>,
     pub(super) swapchain_images: Vec<Arc<Image>>,
     pub(super) swapchain_image_views: Vec<Arc<ImageView>>,
+
     /// Determines if the swapchain must be recreated.
     ///
     /// This is used when the window size changes.
@@ -291,6 +292,13 @@ impl Graphics {
             .cleanup_finished();
 
         if self.recreate_swapchain {
+            println!(
+                "Recreating swapchain with size: {:?}",
+                [
+                    self.window.inner_size().width,
+                    self.window.inner_size().height
+                ],
+            );
             self.recretate_swapchain()?;
             self.recreate_swapchain = false;
         }
@@ -335,17 +343,6 @@ impl Graphics {
 
         for mesh in self.meshes.iter() {
             builder
-                // TODO set a specific pipeline for Mesh type
-                //
-                // Idea:
-                //
-                // enum MeshPipeline { Triangle, Circle };
-                // struct Mesh { pipeline: MeshPipeline, ... };
-                //
-                // .bind_pipeline_graphics(match mesh.pipeline {
-                //      MeshPipeline::Triangle => self.triangle_pipeline.clone(),
-                //      MeshPipeline::Circle => self.circle_pipeline.clone(),
-                // })?;
                 .bind_pipeline_graphics(self.triangle_pipeline.clone())?
                 .bind_vertex_buffers(0, mesh.vbuffer.clone())?
                 .bind_index_buffer(mesh.ibuffer.clone())?
