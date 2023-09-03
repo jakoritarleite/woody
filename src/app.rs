@@ -4,6 +4,7 @@ use nalgebra_glm::vec2;
 use nalgebra_glm::vec3;
 use thiserror::Error;
 use winit::event::Event;
+use winit::event::VirtualKeyCode;
 use winit::event::WindowEvent;
 use winit::event_loop::ControlFlow;
 use winit::event_loop::EventLoop;
@@ -13,12 +14,15 @@ use crate::graphics;
 use crate::graphics::context::Graphics;
 use crate::graphics::mesh::IntoMesh;
 use crate::graphics::mesh::Rectangle;
+use crate::input::KeyCode;
 // use crate::graphics::Renderer;
 
 pub struct App {
     pub world: World,
     #[allow(clippy::type_complexity)]
     update_systems: Vec<Box<dyn Fn(&mut World)>>,
+    #[allow(clippy::type_complexity)]
+    keyboard_handler_systems: Vec<Box<dyn Fn(&mut World, KeyCode)>>,
     // TODO create basic mesh components such as Rectangle, Circle, Line, etc
     // and create systems that draws those meshes using our renderer
     #[allow(clippy::type_complexity)]
@@ -38,6 +42,7 @@ impl App {
             Self {
                 world: World::new(),
                 update_systems: vec![],
+                keyboard_handler_systems: vec![Box::new(handle_player_movement)],
                 draw_systems: vec![Box::new(draw_rectangle)],
                 graphics,
             },
@@ -59,6 +64,12 @@ impl App {
 
         for system in self.draw_systems.iter() {
             (system)(&mut self.world, &mut self.graphics);
+        }
+    }
+
+    fn run_keyboard_handler_systems(&mut self, keycode: KeyCode) {
+        for system in self.keyboard_handler_systems.iter() {
+            (system)(&mut self.world, keycode);
         }
     }
 
@@ -94,6 +105,12 @@ impl App {
                         }
                     }
 
+                    WindowEvent::KeyboardInput { input, .. } => {
+                        if let Some(keycode) = input.virtual_keycode.map(KeyCode::from) {
+                            self.run_keyboard_handler_systems(keycode);
+                        }
+                    }
+
                     _ => {}
                 },
 
@@ -101,6 +118,10 @@ impl App {
             }
         });
     }
+}
+
+fn handle_player_movement(_world: &mut World, keycode: KeyCode) {
+    println!("Keycode {:?}", keycode);
 }
 
 fn draw_rectangle(_world: &mut World, graphics: &mut Graphics) {
