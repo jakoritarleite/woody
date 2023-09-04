@@ -4,30 +4,21 @@ use nalgebra_glm::vec2;
 use nalgebra_glm::vec3;
 use thiserror::Error;
 use winit::event::Event;
-use winit::event::VirtualKeyCode;
 use winit::event::WindowEvent;
 use winit::event_loop::ControlFlow;
 use winit::event_loop::EventLoop;
 
 use crate::ecs::world::World;
-use crate::graphics;
 use crate::graphics::context::Graphics;
-use crate::graphics::mesh::IntoMesh;
 use crate::graphics::mesh::Rectangle;
-use crate::input::KeyCode;
-// use crate::graphics::Renderer;
+use crate::input::keyboard::KeyboardEvent;
+use crate::input::CursorEvent;
+use crate::input::MouseEvent;
+use crate::systems::Systems;
 
 pub struct App {
     pub world: World,
-    #[allow(clippy::type_complexity)]
-    update_systems: Vec<Box<dyn Fn(&mut World)>>,
-    #[allow(clippy::type_complexity)]
-    keyboard_handler_systems: Vec<Box<dyn Fn(&mut World, KeyCode)>>,
-    // TODO create basic mesh components such as Rectangle, Circle, Line, etc
-    // and create systems that draws those meshes using our renderer
-    #[allow(clippy::type_complexity)]
-    draw_systems: Vec<Box<dyn Fn(&mut World, &mut Graphics)>>,
-    //
+    pub systems: Systems,
     graphics: Graphics,
 }
 
@@ -37,40 +28,18 @@ impl App {
         let event_loop = EventLoop::new();
         // TODO handle error
         let graphics = Graphics::new(&event_loop).unwrap();
+        let mut systems = Systems::new();
+
+        systems.add_draw_system(draw_rectangle);
 
         Ok((
             Self {
                 world: World::new(),
-                update_systems: vec![],
-                keyboard_handler_systems: vec![Box::new(handle_player_movement)],
-                draw_systems: vec![Box::new(draw_rectangle)],
+                systems,
                 graphics,
             },
             event_loop,
         ))
-    }
-
-    pub fn add_system<F>(&mut self, update_system: F)
-    where
-        F: Fn(&mut World) + 'static,
-    {
-        self.update_systems.push(Box::new(update_system));
-    }
-
-    fn run_systems(&mut self) {
-        for system in self.update_systems.iter() {
-            (system)(&mut self.world);
-        }
-
-        for system in self.draw_systems.iter() {
-            (system)(&mut self.world, &mut self.graphics);
-        }
-    }
-
-    fn run_keyboard_handler_systems(&mut self, keycode: KeyCode) {
-        for system in self.keyboard_handler_systems.iter() {
-            (system)(&mut self.world, keycode);
-        }
     }
 
     pub fn run(mut self, event_loop: EventLoop<()>) -> ! {
@@ -83,11 +52,12 @@ impl App {
 
             match event {
                 Event::MainEventsCleared if !minimized => {
-                    self.run_systems();
+                    self.systems.run_update_systems(&mut self.world);
+                    self.systems
+                        .run_draw_systems(&mut self.world, &mut self.graphics);
                     self.graphics.draw().unwrap();
-                    // self.renderer.render().unwrap();
-                    // self.renderer.perspective_angle += 1.0;
 
+                    // TODO: don't clear meshes
                     self.graphics.meshes.clear();
                 }
                 Event::WindowEvent { event, .. } => match event {
@@ -106,9 +76,34 @@ impl App {
                     }
 
                     WindowEvent::KeyboardInput { input, .. } => {
-                        if let Some(keycode) = input.virtual_keycode.map(KeyCode::from) {
-                            self.run_keyboard_handler_systems(keycode);
+                        let winit::event::KeyboardInput {
+                            state,
+                            virtual_keycode,
+                            ..
+                        } = input;
+
+                        if let Some(keycode) = virtual_keycode {
+                            let event = KeyboardEvent::new(state, keycode);
+                            self.systems
+                                .run_keyboard_handler_systems(&mut self.world, event);
                         }
+                    }
+
+                    WindowEvent::MouseInput { state, button, .. } => {
+                        let event = MouseEvent::new(state, button);
+
+                        self.systems
+                            .run_mouse_handler_systems(&mut self.world, event);
+                    }
+
+                    WindowEvent::CursorMoved { position, .. } => {
+                        let event = CursorEvent {
+                            x: position.x,
+                            y: position.y,
+                        };
+
+                        self.systems
+                            .run_cursor_handler_systems(&mut self.world, event);
                     }
 
                     _ => {}
@@ -118,10 +113,6 @@ impl App {
             }
         });
     }
-}
-
-fn handle_player_movement(_world: &mut World, keycode: KeyCode) {
-    println!("Keycode {:?}", keycode);
 }
 
 fn draw_rectangle(_world: &mut World, graphics: &mut Graphics) {
