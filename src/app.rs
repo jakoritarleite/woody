@@ -1,4 +1,6 @@
 use std::fmt;
+use std::time::Duration;
+use std::time::Instant;
 
 use nalgebra_glm::vec2;
 use nalgebra_glm::vec3;
@@ -20,6 +22,9 @@ pub struct App {
     pub world: World,
     pub systems: Systems,
     graphics: Graphics,
+    clock: Clock,
+    delta_time: f64,
+    last_time: f64,
 }
 
 impl App {
@@ -37,6 +42,9 @@ impl App {
                 world: World::new(),
                 systems,
                 graphics,
+                clock: Clock::new(),
+                delta_time: 0.0,
+                last_time: 0.0,
             },
             event_loop,
         ))
@@ -45,6 +53,11 @@ impl App {
     pub fn run(mut self, event_loop: EventLoop<()>) -> ! {
         let mut minimized = false;
 
+        self.clock.start();
+        self.clock.update();
+
+        self.last_time = self.clock.elapsed;
+
         event_loop.run(move |event, _, control_flow| {
             *control_flow = ControlFlow::Poll;
 
@@ -52,6 +65,12 @@ impl App {
 
             match event {
                 Event::MainEventsCleared if !minimized => {
+                    self.clock.update();
+                    let current_time = self.clock.elapsed;
+                    self.delta_time = current_time - self.last_time;
+
+                    let frame_start_time = Instant::now();
+
                     self.systems.run_update_systems(&mut self.world);
                     self.systems
                         .run_draw_systems(&mut self.world, &mut self.graphics);
@@ -59,11 +78,15 @@ impl App {
 
                     // TODO: don't clear meshes
                     self.graphics.meshes.clear();
+
+                    let _frame_elapsed_time = frame_start_time.elapsed().as_secs_f64();
+
+                    self.last_time = current_time;
                 }
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::CloseRequested => {
                         *control_flow = ControlFlow::Exit;
-                        println!("Current frame ( {} )", self.graphics.frame_number);
+                        println!("Current frame ( Graphics->{})", self.graphics.frame_number);
                     }
 
                     WindowEvent::Resized(size) => {
@@ -130,6 +153,28 @@ impl fmt::Debug for App {
             .field("world", &self.world)
             .field("renderer", &self.graphics)
             .finish()
+    }
+}
+
+struct Clock {
+    start: Instant,
+    elapsed: f64,
+}
+
+impl Clock {
+    fn new() -> Self {
+        Self {
+            start: Instant::now(),
+            elapsed: Duration::new(0, 0).as_secs_f64(),
+        }
+    }
+
+    fn start(&mut self) {
+        self.start = Instant::now();
+    }
+
+    fn update(&mut self) {
+        self.elapsed = self.start.elapsed().as_secs_f64();
     }
 }
 
