@@ -5,7 +5,7 @@ use vulkano::image::ImageLayout;
 use vulkano::render_pass::RenderPass;
 use vulkano::swapchain::Swapchain;
 
-use super::context::Graphics;
+use super::vulkan::Graphics;
 use super::GraphicsError;
 
 impl Graphics {

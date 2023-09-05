@@ -17,7 +17,7 @@ use vulkano::swapchain::SwapchainCreateInfo;
 use vulkano::sync::Sharing;
 use winit::window::Window;
 
-use super::context::Graphics;
+use super::vulkan::Graphics;
 use super::GraphicsError;
 
 impl Graphics {

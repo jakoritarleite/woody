@@ -1,13 +1,14 @@
 use thiserror::Error;
 
 pub mod camera;
-pub mod context;
 mod framebuffers;
 pub mod mesh;
 mod pipeline;
 mod render_pass;
+pub mod renderer;
 mod swapchain;
 mod vertex;
+pub mod vulkan;
 
 #[derive(Debug, Error)]
 pub enum GraphicsError {

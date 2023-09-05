@@ -1,9 +1,9 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use nalgebra_glm::vec2;
-use nalgebra_glm::vec3;
-use thiserror::Error;
+use log::debug;
+use log::info;
+use log::trace;
 use vulkano::command_buffer::allocator::StandardCommandBufferAllocator;
 use vulkano::command_buffer::AutoCommandBufferBuilder;
 use vulkano::command_buffer::CommandBufferUsage;
@@ -21,8 +21,10 @@ use vulkano::device::QueueFlags;
 use vulkano::format::ClearValue;
 use vulkano::image::view::ImageView;
 use vulkano::image::Image;
+use vulkano::instance::debug::ValidationFeatureEnable;
 use vulkano::instance::Instance;
 use vulkano::instance::InstanceCreateInfo;
+use vulkano::instance::InstanceExtensions;
 use vulkano::memory::allocator::StandardMemoryAllocator;
 use vulkano::pipeline::graphics::viewport::Viewport;
 use vulkano::pipeline::GraphicsPipeline;
@@ -44,10 +46,6 @@ use winit::event_loop::EventLoop;
 use winit::window::Window;
 use winit::window::WindowBuilder;
 
-use super::mesh::IntoMesh;
-use super::mesh::Mesh;
-use super::mesh::Rectangle;
-use super::vertex::Vertex;
 use super::GraphicsError;
 
 /// Vulkan graphics context.
@@ -74,8 +72,18 @@ impl VulkanContext {
         let library = VulkanLibrary::new()?;
         let required_extensions = Surface::required_extensions(event_loop);
 
+        let extensions = InstanceExtensions {
+            #[cfg(debug_assertions)]
+            ext_debug_utils: true,
+            ..required_extensions
+        };
+
+        debug!("Vulkan required extensions: {:?}", extensions);
+
         let info = InstanceCreateInfo {
-            enabled_extensions: required_extensions,
+            enabled_extensions: extensions,
+            #[cfg(debug_assertions)]
+            enabled_layers: vec!["VK_LAYER_KHRONOS_validation".to_string()],
             ..InstanceCreateInfo::application_from_cargo_toml()
         };
         let instance = Instance::new(library, info)?;
@@ -86,6 +94,8 @@ impl VulkanContext {
             khr_swapchain: true,
             ..DeviceExtensions::empty()
         };
+
+        debug!("Device extensions {:?}", device_extensions);
 
         let (physical_device, queue_family_index) = instance
             .enumerate_physical_devices()?
@@ -113,7 +123,7 @@ impl VulkanContext {
             })
             .ok_or(GraphicsError::NoSuitablePhysicalDevice)?;
 
-        println!(
+        info!(
             "Selected physical device ( {} : {:?} )",
             physical_device.properties().device_name,
             physical_device.properties().device_type
@@ -197,9 +207,6 @@ pub struct Graphics {
     triangle_pipeline: Arc<GraphicsPipeline>,
     triangle_pipeline_layout: Arc<PipelineLayout>,
 
-    /// List of meshes.
-    pub(crate) meshes: Vec<Mesh>,
-
     /// Vulkano Synchronization mechanism.
     sync: Option<Box<dyn GpuFuture>>,
 }
@@ -274,9 +281,16 @@ impl Graphics {
             triangle_fragment_shader,
             triangle_pipeline,
             triangle_pipeline_layout,
-            meshes: vec![],
             sync,
         })
+    }
+
+    pub(super) fn begin_frame(&mut self) -> Result<(), GraphicsError> {
+        Ok(())
+    }
+
+    pub(super) fn end_frame(&mut self) -> Result<(), GraphicsError> {
+        Ok(())
     }
 
     /// Compute all needed data and present into surface.
@@ -341,13 +355,13 @@ impl Graphics {
             )?
             .set_viewport(0, [self.viewport.clone()].into_iter().collect())?;
 
-        for mesh in self.meshes.iter() {
-            builder
-                .bind_pipeline_graphics(self.triangle_pipeline.clone())?
-                .bind_vertex_buffers(0, mesh.vbuffer.clone())?
-                .bind_index_buffer(mesh.ibuffer.clone())?
-                .draw_indexed(mesh.index_count as u32, 1, 0, 0, 0)?;
-        }
+        //for mesh in self.meshes.iter() {
+        //    builder
+        //        .bind_pipeline_graphics(self.triangle_pipeline.clone())?
+        //        .bind_vertex_buffers(0, mesh.vbuffer.clone())?
+        //        .bind_index_buffer(mesh.ibuffer.clone())?
+        //        .draw_indexed(mesh.index_count as u32, 1, 0, 0, 0)?;
+        //}
 
         builder.end_render_pass(SubpassEndInfo::default())?;
 

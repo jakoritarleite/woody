@@ -5,7 +5,6 @@ use vulkano::descriptor_set::layout::DescriptorSetLayout;
 use vulkano::descriptor_set::layout::DescriptorSetLayoutBinding;
 use vulkano::descriptor_set::layout::DescriptorSetLayoutCreateInfo;
 use vulkano::descriptor_set::layout::DescriptorType;
-use vulkano::device;
 use vulkano::device::Device;
 use vulkano::image::SampleCount;
 use vulkano::pipeline::graphics::color_blend::ColorBlendAttachmentState;
@@ -19,8 +18,6 @@ use vulkano::pipeline::graphics::rasterization::FrontFace;
 use vulkano::pipeline::graphics::rasterization::PolygonMode;
 use vulkano::pipeline::graphics::rasterization::RasterizationState;
 use vulkano::pipeline::graphics::vertex_input::VertexInputState;
-use vulkano::pipeline::graphics::viewport::Scissor;
-use vulkano::pipeline::graphics::viewport::Viewport;
 use vulkano::pipeline::graphics::viewport::ViewportState;
 use vulkano::pipeline::graphics::GraphicsPipelineCreateInfo;
 use vulkano::pipeline::layout::PipelineLayoutCreateInfo;
@@ -34,8 +31,8 @@ use vulkano::shader::DescriptorBindingRequirements;
 use vulkano::shader::ShaderModule;
 use vulkano::swapchain::Swapchain;
 
-use super::context::Graphics;
 use super::vertex::Vertex;
+use super::vulkan::Graphics;
 use super::GraphicsError;
 
 impl Graphics {

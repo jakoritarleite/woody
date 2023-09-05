@@ -18,8 +18,8 @@ use vulkano::DeviceSize;
 
 use crate::ecs::component::Component;
 
-use super::context::Graphics;
 use super::vertex::Vertex;
+use super::vulkan::Graphics;
 use super::GraphicsError;
 
 #[derive(Debug, Clone)]
@@ -87,7 +87,7 @@ impl Graphics {
             self.window.inner_size().into(),
         )?;
 
-        self.meshes.push(mesh);
+        // self.meshes.push(mesh);
 
         Ok(())
     }
