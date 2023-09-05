@@ -2,8 +2,10 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use log::debug;
+use log::error;
 use log::info;
 use log::trace;
+use log::warn;
 use vulkano::command_buffer::allocator::StandardCommandBufferAllocator;
 use vulkano::command_buffer::AutoCommandBufferBuilder;
 use vulkano::command_buffer::CommandBufferUsage;
@@ -21,8 +23,14 @@ use vulkano::device::QueueFlags;
 use vulkano::format::ClearValue;
 use vulkano::image::view::ImageView;
 use vulkano::image::Image;
+use vulkano::instance::debug::DebugUtilsMessageSeverity;
+use vulkano::instance::debug::DebugUtilsMessageType;
+use vulkano::instance::debug::DebugUtilsMessenger;
+use vulkano::instance::debug::DebugUtilsMessengerCallback;
+use vulkano::instance::debug::DebugUtilsMessengerCreateInfo;
 use vulkano::instance::debug::ValidationFeatureEnable;
 use vulkano::instance::Instance;
+use vulkano::instance::InstanceCreateFlags;
 use vulkano::instance::InstanceCreateInfo;
 use vulkano::instance::InstanceExtensions;
 use vulkano::memory::allocator::StandardMemoryAllocator;
@@ -65,6 +73,9 @@ pub struct VulkanContext {
     pub command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
     /// Vulkan descriptor set allocator.
     pub descriptor_set_allocator: Arc<StandardDescriptorSetAllocator>,
+    #[cfg(debug_assertions)]
+    /// Vulkan debug utils messenger.
+    _debug_messenger: DebugUtilsMessenger,
 }
 
 impl VulkanContext {
@@ -87,6 +98,48 @@ impl VulkanContext {
             ..InstanceCreateInfo::application_from_cargo_toml()
         };
         let instance = Instance::new(library, info)?;
+
+        #[cfg(debug_assertions)]
+        let _debug_messenger = unsafe {
+            DebugUtilsMessenger::new(
+                instance.clone(),
+                DebugUtilsMessengerCreateInfo {
+                    message_severity: DebugUtilsMessageSeverity::VERBOSE
+                        | DebugUtilsMessageSeverity::INFO
+                        | DebugUtilsMessageSeverity::WARNING
+                        | DebugUtilsMessageSeverity::ERROR,
+
+                    message_type: DebugUtilsMessageType::GENERAL
+                        | DebugUtilsMessageType::VALIDATION
+                        | DebugUtilsMessageType::PERFORMANCE,
+
+                    ..DebugUtilsMessengerCreateInfo::user_callback(
+                        DebugUtilsMessengerCallback::new(
+                            |message_severity, message_type, callback_data| match message_severity {
+                                DebugUtilsMessageSeverity::VERBOSE => {
+                                    trace!("({:?}) {}", message_type, callback_data.message)
+                                }
+                                DebugUtilsMessageSeverity::INFO => {
+                                    info!("({:?}) {}", message_type, callback_data.message)
+                                }
+
+                                DebugUtilsMessageSeverity::WARNING => {
+                                    warn!("({:?}) {}", message_type, callback_data.message)
+                                }
+
+                                DebugUtilsMessageSeverity::ERROR => {
+                                    error!("({:?}) {}", message_type, callback_data.message)
+                                }
+                                _ => error!(
+                                    "UNKNOWN MESSAGE SEVERITY ({:?}) {}",
+                                    message_type, callback_data.message
+                                ),
+                            },
+                        ),
+                    )
+                },
+            )?
+        };
 
         let surface = Surface::from_window(instance.clone(), window)?;
 
@@ -159,6 +212,8 @@ impl VulkanContext {
             memory_allocator,
             command_buffer_allocator,
             descriptor_set_allocator,
+            #[cfg(debug_assertions)]
+            _debug_messenger,
         })
     }
 }
