@@ -34,7 +34,6 @@ use vulkano::pipeline::graphics::viewport::Viewport;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::pipeline::PipelineLayout;
 use vulkano::render_pass::Framebuffer;
-use vulkano::render_pass::RenderPass;
 use vulkano::shader::ShaderModule;
 use vulkano::swapchain::acquire_next_image;
 use vulkano::swapchain::Surface;
@@ -49,10 +48,13 @@ use winit::event_loop::EventLoop;
 use winit::window::Window;
 use winit::window::WindowBuilder;
 
+use crate::graphics::vulkan::renderpass::RenderPass;
+
 use self::swapchain::SwapchainContext;
 
 use super::GraphicsError;
 
+mod command_buffer;
 mod image;
 mod renderpass;
 mod swapchain;
@@ -88,6 +90,8 @@ pub struct VulkanContext {
 
     /// Vulkan swapchain.
     swapchain: SwapchainContext,
+
+    render_pass: RenderPass,
 
     /// Determines if the swapchain must be recreated.
     ///
@@ -236,6 +240,15 @@ impl VulkanContext {
             window.inner_size().height,
         )?;
 
+        let render_pass = RenderPass::new(
+            device.clone(),
+            &swapchain,
+            [0, 0, window.inner_size().width, window.inner_size().height],
+            [0.0, 0.0, 0.2, 1.0],
+            1.0,
+            0,
+        )?;
+
         let viewport = Viewport {
             offset: [0.0, 0.0],
             extent: [swapchain.image_width(), swapchain.image_height()],
@@ -255,6 +268,7 @@ impl VulkanContext {
             command_buffer_allocator,
             descriptor_set_allocator,
             swapchain,
+            render_pass,
             recreate_swapchain: false,
             viewport,
             sync,
