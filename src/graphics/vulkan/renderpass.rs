@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use log::debug;
 use log::info;
+use vulkano::command_buffer::AutoCommandBufferBuilder;
+use vulkano::command_buffer::PrimaryAutoCommandBuffer;
 use vulkano::command_buffer::RenderPassBeginInfo;
 use vulkano::device::Device;
 use vulkano::format::ClearValue;
@@ -16,16 +18,12 @@ use vulkano::render_pass::RenderPass as vkRenderPass;
 use vulkano::render_pass::RenderPassCreateInfo;
 use vulkano::render_pass::SubpassDependency;
 use vulkano::render_pass::SubpassDescription;
-use vulkano::render_pass::SubpassDescriptionFlags;
 use vulkano::sync::AccessFlags;
 use vulkano::sync::DependencyFlags;
-use vulkano::sync::PipelineStage;
 use vulkano::sync::PipelineStages;
 
 use crate::graphics::GraphicsError;
 
-use super::command_buffer::CommandBuffer;
-use super::command_buffer::CommandBufferState;
 use super::swapchain::SwapchainContext;
 
 pub enum RenderPassState {
@@ -34,7 +32,6 @@ pub enum RenderPassState {
     InRenderPass,
     RecordingEnded,
     Submitted,
-    NotAllocated,
 }
 
 pub struct RenderPass {
@@ -142,7 +139,7 @@ impl RenderPass {
 
     pub fn begin(
         &self,
-        command_buffer: &mut CommandBuffer,
+        command_buffer: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
         frame_buffer: Arc<Framebuffer>,
     ) -> Result<(), GraphicsError> {
         let color_clear_value = ClearValue::Float(self.clear_colors);
@@ -155,17 +152,16 @@ impl RenderPass {
             ..RenderPassBeginInfo::framebuffer(frame_buffer)
         };
 
-        command_buffer
-            .handle
-            .begin_render_pass(begin_info, Default::default())?;
-        command_buffer.state = CommandBufferState::InRenderPass;
+        command_buffer.begin_render_pass(begin_info, Default::default())?;
 
         Ok(())
     }
 
-    pub fn end(&self, command_buffer: &mut CommandBuffer) -> Result<(), GraphicsError> {
-        command_buffer.handle.end_render_pass(Default::default())?;
-        command_buffer.state = CommandBufferState::Recording;
+    pub fn end(
+        &self,
+        command_buffer: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
+    ) -> Result<(), GraphicsError> {
+        command_buffer.end_render_pass(Default::default())?;
 
         Ok(())
     }
