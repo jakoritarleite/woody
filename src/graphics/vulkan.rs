@@ -21,16 +21,12 @@ use vulkano::device::Queue;
 use vulkano::device::QueueCreateInfo;
 use vulkano::device::QueueFlags;
 use vulkano::format::ClearValue;
-use vulkano::image::view::ImageView;
-use vulkano::image::Image;
 use vulkano::instance::debug::DebugUtilsMessageSeverity;
 use vulkano::instance::debug::DebugUtilsMessageType;
 use vulkano::instance::debug::DebugUtilsMessenger;
 use vulkano::instance::debug::DebugUtilsMessengerCallback;
 use vulkano::instance::debug::DebugUtilsMessengerCreateInfo;
-use vulkano::instance::debug::ValidationFeatureEnable;
 use vulkano::instance::Instance;
-use vulkano::instance::InstanceCreateFlags;
 use vulkano::instance::InstanceCreateInfo;
 use vulkano::instance::InstanceExtensions;
 use vulkano::memory::allocator::StandardMemoryAllocator;
@@ -42,7 +38,6 @@ use vulkano::render_pass::RenderPass;
 use vulkano::shader::ShaderModule;
 use vulkano::swapchain::acquire_next_image;
 use vulkano::swapchain::Surface;
-use vulkano::swapchain::Swapchain;
 use vulkano::swapchain::SwapchainPresentInfo;
 use vulkano::sync;
 use vulkano::sync::GpuFuture;
@@ -54,31 +49,60 @@ use winit::event_loop::EventLoop;
 use winit::window::Window;
 use winit::window::WindowBuilder;
 
+use self::swapchain::SwapchainContext;
+
 use super::GraphicsError;
 
+mod image;
+mod renderpass;
+mod swapchain;
+
 /// Vulkan graphics context.
-#[derive(Debug)]
 pub struct VulkanContext {
     /// Vulkan Instance.
-    pub instance: Arc<Instance>,
-    /// Vulkan swapchain screen Surface.
-    pub surface: Arc<Surface>,
-    /// Vulkan logical device.
-    pub device: Arc<Device>,
-    /// Vulkan graphics queue.
-    pub queue: Arc<Queue>,
-    /// Vulkan memory allocator.
-    pub memory_allocator: Arc<StandardMemoryAllocator>,
-    /// Vulkan command buffer allocator.
-    pub command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
-    /// Vulkan descriptor set allocator.
-    pub descriptor_set_allocator: Arc<StandardDescriptorSetAllocator>,
+    pub(super) instance: Arc<Instance>,
+
     #[cfg(debug_assertions)]
     /// Vulkan debug utils messenger.
     _debug_messenger: DebugUtilsMessenger,
+
+    /// Vulkan swapchain screen Surface.
+    pub(super) surface: Arc<Surface>,
+
+    /// Vulkan logical device.
+    pub(super) device: Arc<Device>,
+
+    /// Vulkan graphics queue.
+    pub(super) queue: Arc<Queue>,
+
+    /// Vulkan memory allocator.
+    pub(super) memory_allocator: Arc<StandardMemoryAllocator>,
+
+    /// Command buffer allocator.
+    ///
+    /// This abstracts the usage of [Command Pools](https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkCommandPool.html).
+    pub(super) command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
+
+    /// Vulkan descriptor set allocator.
+    pub(super) descriptor_set_allocator: Arc<StandardDescriptorSetAllocator>,
+
+    /// Vulkan swapchain.
+    swapchain: SwapchainContext,
+
+    /// Determines if the swapchain must be recreated.
+    ///
+    /// This is used when the window size changes.
+    pub(crate) recreate_swapchain: bool,
+
+    /// Dynamic viewport used when we resize window.
+    pub(super) viewport: Viewport,
+
+    /// Vulkano Synchronization mechanism.
+    sync: Option<Box<dyn GpuFuture>>,
 }
 
 impl VulkanContext {
+    /// Creates a new [`VulkanContext`] instance.
     pub fn new(event_loop: &EventLoop<()>, window: Arc<Window>) -> Result<Self, GraphicsError> {
         let library = VulkanLibrary::new()?;
         let required_extensions = Surface::required_extensions(event_loop);
@@ -141,7 +165,7 @@ impl VulkanContext {
             )?
         };
 
-        let surface = Surface::from_window(instance.clone(), window)?;
+        let surface = Surface::from_window(instance.clone(), window.clone())?;
 
         let device_extensions = DeviceExtensions {
             khr_swapchain: true,
@@ -204,260 +228,285 @@ impl VulkanContext {
         let descriptor_set_allocator =
             Arc::new(StandardDescriptorSetAllocator::new(device.clone()));
 
+        let swapchain = SwapchainContext::new(
+            memory_allocator.clone(),
+            device.clone(),
+            surface.clone(),
+            window.inner_size().width,
+            window.inner_size().height,
+        )?;
+
+        let viewport = Viewport {
+            offset: [0.0, 0.0],
+            extent: [swapchain.image_width(), swapchain.image_height()],
+            depth_range: 0f32..=1f32,
+        };
+
+        let sync = Some(sync::now(device.clone()).boxed());
+
         Ok(VulkanContext {
             instance,
+            #[cfg(debug_assertions)]
+            _debug_messenger,
             surface,
             device,
             queue,
             memory_allocator,
             command_buffer_allocator,
             descriptor_set_allocator,
-            #[cfg(debug_assertions)]
-            _debug_messenger,
-        })
-    }
-}
-
-/// A graphics context for Vulkan rendering.
-#[allow(dead_code)]
-pub struct Graphics {
-    pub(crate) vulkan: VulkanContext,
-
-    /// winit Window.
-    pub(crate) window: Arc<Window>,
-
-    /// How many frames we've drew.
-    pub(crate) frame_number: usize,
-
-    /// Vulkan swapchain.
-    pub(super) swapchain: Arc<Swapchain>,
-    pub(super) swapchain_images: Vec<Arc<Image>>,
-    pub(super) swapchain_image_views: Vec<Arc<ImageView>>,
-
-    /// Determines if the swapchain must be recreated.
-    ///
-    /// This is used when the window size changes.
-    pub(crate) recreate_swapchain: bool,
-
-    /// Command buffer allocator.
-    ///
-    /// This abstracts the usage of [Command Pools](https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkCommandPool.html).
-    pub(super) command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
-
-    /// Render pass.
-    pub(super) render_pass: Arc<RenderPass>,
-    pub(super) framebuffers: Vec<Arc<Framebuffer>>,
-
-    /// Dynamic viewport used when we resize window.
-    pub(super) viewport: Viewport,
-
-    /// Shaders for our triangle geometries.
-    ///
-    /// For now all geometries uses this shaders, but in future we may have different shaders for
-    /// circles and other things.
-    triangle_vertex_shader: Arc<ShaderModule>,
-    triangle_fragment_shader: Arc<ShaderModule>,
-
-    /// Graphics Pipelines.
-    triangle_pipeline: Arc<GraphicsPipeline>,
-    triangle_pipeline_layout: Arc<PipelineLayout>,
-
-    /// Vulkano Synchronization mechanism.
-    sync: Option<Box<dyn GpuFuture>>,
-}
-
-impl Graphics {
-    /// Creates a new [`Graphics`] from an event loop.
-    pub fn new(event_loop: &EventLoop<()>) -> Result<Self, GraphicsError> {
-        let window = WindowBuilder::new()
-            .with_title("Woody Engine")
-            .with_inner_size(LogicalSize::new(1024, 768))
-            .build(event_loop)?;
-        let window = Arc::new(window);
-
-        let vulkan_ctx = VulkanContext::new(event_loop, window.clone())?;
-
-        let (swapchain, swapchain_images) = Self::create_swapchain(
-            window.clone(),
-            vulkan_ctx.device.clone(),
-            vulkan_ctx.surface.clone(),
-        )?;
-        let swapchain_image_views =
-            Self::create_swapchain_image_views(swapchain.clone(), &swapchain_images)?;
-
-        let command_buffer_allocator = Arc::new(StandardCommandBufferAllocator::new(
-            vulkan_ctx.device.clone(),
-            Default::default(),
-        ));
-
-        let render_pass = Self::create_render_pass(vulkan_ctx.device.clone(), swapchain.clone())?;
-
-        let framebuffers = Self::create_framebuffers(
-            swapchain.clone(),
-            &swapchain_image_views,
-            render_pass.clone(),
-        )?;
-
-        let viewport = Viewport {
-            offset: [0.0, 0.0],
-            extent: [
-                swapchain.image_extent()[0] as f32,
-                swapchain.image_extent()[1] as f32,
-            ],
-            depth_range: 0f32..=1f32,
-        };
-
-        let triangle_vertex_shader = triangle_vertex_shader::load(vulkan_ctx.device.clone())?;
-        let triangle_fragment_shader = triangle_fragment_shader::load(vulkan_ctx.device.clone())?;
-
-        let (triangle_pipeline, triangle_pipeline_layout) = Self::create_triangle_pipeline(
-            vulkan_ctx.device.clone(),
-            swapchain.clone(),
-            render_pass.clone(),
-            triangle_vertex_shader.clone(),
-            triangle_fragment_shader.clone(),
-        )?;
-
-        let sync = Some(sync::now(vulkan_ctx.device.clone()).boxed());
-
-        Ok(Self {
-            vulkan: vulkan_ctx,
-            window,
-            frame_number: 0,
             swapchain,
-            swapchain_images,
-            swapchain_image_views,
             recreate_swapchain: false,
-            command_buffer_allocator,
-            render_pass,
-            framebuffers,
             viewport,
-            triangle_vertex_shader,
-            triangle_fragment_shader,
-            triangle_pipeline,
-            triangle_pipeline_layout,
             sync,
         })
     }
 
-    pub(super) fn begin_frame(&mut self) -> Result<(), GraphicsError> {
-        Ok(())
+    pub(crate) fn begin_frame(&mut self) -> Result<(), GraphicsError> {
+        unimplemented!()
     }
 
-    pub(super) fn end_frame(&mut self) -> Result<(), GraphicsError> {
-        Ok(())
-    }
-
-    /// Compute all needed data and present into surface.
-    pub fn draw(&mut self) -> Result<(), GraphicsError> {
-        // Skip draw when the window size is zero.
-        if self.window.inner_size().width == 0 || self.window.inner_size().height == 0 {
-            return Ok(());
-        }
-
-        self.sync
-            .as_mut()
-            .ok_or(GraphicsError::SynchronizationNotInitialized)?
-            .cleanup_finished();
-
-        if self.recreate_swapchain {
-            println!(
-                "Recreating swapchain with size: {:?}",
-                [
-                    self.window.inner_size().width,
-                    self.window.inner_size().height
-                ],
-            );
-            self.recretate_swapchain()?;
-            self.recreate_swapchain = false;
-        }
-
-        let (image_index, suboptimal, acquire_future) =
-            match acquire_next_image(self.swapchain.clone(), None) {
-                Ok(next_image) => next_image,
-                Err(Validated::Error(VulkanError::OutOfDate)) => {
-                    self.recreate_swapchain = true;
-                    return Ok(());
-                }
-                Err(err) => return Err(GraphicsError::from(err)),
-            };
-
-        if suboptimal {
-            self.recreate_swapchain = true;
-        }
-
-        let mut builder = AutoCommandBufferBuilder::primary(
-            &self.command_buffer_allocator,
-            self.vulkan.queue.queue_family_index(),
-            CommandBufferUsage::OneTimeSubmit,
-        )?;
-
-        // make clear value flash
-        let flash = (self.frame_number as f32 / 120.0).sin().abs();
-
-        builder
-            .begin_render_pass(
-                RenderPassBeginInfo {
-                    clear_values: vec![Some(ClearValue::Float([0.0, 0.0, flash, 1.0]))],
-                    ..RenderPassBeginInfo::framebuffer(
-                        self.framebuffers[image_index as usize].clone(),
-                    )
-                },
-                vulkano::command_buffer::SubpassBeginInfo {
-                    contents: SubpassContents::Inline,
-                    ..Default::default()
-                },
-            )?
-            .set_viewport(0, [self.viewport.clone()].into_iter().collect())?;
-
-        //for mesh in self.meshes.iter() {
-        //    builder
-        //        .bind_pipeline_graphics(self.triangle_pipeline.clone())?
-        //        .bind_vertex_buffers(0, mesh.vbuffer.clone())?
-        //        .bind_index_buffer(mesh.ibuffer.clone())?
-        //        .draw_indexed(mesh.index_count as u32, 1, 0, 0, 0)?;
-        //}
-
-        builder.end_render_pass(SubpassEndInfo::default())?;
-
-        let command_buffer = builder.build()?;
-
-        let future = self
-            .sync
-            .take()
-            .ok_or(GraphicsError::SynchronizationNotInitialized)?
-            .join(acquire_future)
-            .then_execute(self.vulkan.queue.clone(), command_buffer)?
-            .then_swapchain_present(
-                self.vulkan.queue.clone(),
-                SwapchainPresentInfo::swapchain_image_index(self.swapchain.clone(), image_index),
-            )
-            .then_signal_fence_and_flush();
-
-        match future.map_err(Validated::unwrap) {
-            Ok(future) => {
-                self.sync = Some(future.boxed());
-            }
-
-            Err(VulkanError::OutOfDate) => {
-                self.recreate_swapchain = true;
-                self.sync = Some(sync::now(self.vulkan.device.clone()).boxed());
-            }
-
-            Err(err) => return Err(GraphicsError::from(err)),
-        };
-
-        self.frame_number += 1;
-
-        Ok(())
+    pub(crate) fn end_frame(&mut self) -> Result<(), GraphicsError> {
+        unimplemented!()
     }
 }
 
-impl Debug for Graphics {
-    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
-    }
-}
+pub struct Graphics;
+
+// A graphics context for Vulkan rendering.
+//#[allow(dead_code)]
+//pub struct Graphics {
+//    pub(crate) vulkan: VulkanContext,
+//
+//    /// winit Window.
+//    pub(crate) window: Arc<Window>,
+//
+//    /// How many frames we've drew.
+//    pub(crate) frame_number: usize,
+//
+//    /// Determines if the swapchain must be recreated.
+//    ///
+//    /// This is used when the window size changes.
+//    pub(crate) recreate_swapchain: bool,
+//
+//    /// Command buffer allocator.
+//    ///
+//    /// This abstracts the usage of [Command Pools](https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkCommandPool.html).
+//    pub(super) command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
+//
+//    /// Render pass.
+//    pub(super) render_pass: Arc<RenderPass>,
+//    pub(super) framebuffers: Vec<Arc<Framebuffer>>,
+//
+//    /// Dynamic viewport used when we resize window.
+//    pub(super) viewport: Viewport,
+//
+//    /// Shaders for our triangle geometries.
+//    ///
+//    /// For now all geometries uses this shaders, but in future we may have different shaders for
+//    /// circles and other things.
+//    triangle_vertex_shader: Arc<ShaderModule>,
+//    triangle_fragment_shader: Arc<ShaderModule>,
+//
+//    /// Graphics Pipelines.
+//    triangle_pipeline: Arc<GraphicsPipeline>,
+//    triangle_pipeline_layout: Arc<PipelineLayout>,
+//
+//    /// Vulkano Synchronization mechanism.
+//    sync: Option<Box<dyn GpuFuture>>,
+//}
+//
+//impl Graphics {
+//    /// Creates a new [`Graphics`] from an event loop.
+//    pub fn new(event_loop: &EventLoop<()>) -> Result<Self, GraphicsError> {
+//        let window = WindowBuilder::new()
+//            .with_title("Woody Engine")
+//            .with_inner_size(LogicalSize::new(1024, 768))
+//            .build(event_loop)?;
+//        let window = Arc::new(window);
+//
+//        let vulkan_ctx = VulkanContext::new(event_loop, window.clone())?;
+//
+//        let (swapchain, swapchain_images) = Self::create_swapchain(
+//            window.clone(),
+//            vulkan_ctx.device.clone(),
+//            vulkan_ctx.surface.clone(),
+//        )?;
+//        let swapchain_image_views =
+//            Self::create_swapchain_image_views(swapchain.clone(), &swapchain_images)?;
+//
+//        let command_buffer_allocator = Arc::new(StandardCommandBufferAllocator::new(
+//            vulkan_ctx.device.clone(),
+//            Default::default(),
+//        ));
+//
+//        let render_pass = Self::create_render_pass(vulkan_ctx.device.clone(), swapchain.clone())?;
+//
+//        let framebuffers = Self::create_framebuffers(
+//            swapchain.clone(),
+//            &swapchain_image_views,
+//            render_pass.clone(),
+//        )?;
+//
+//        let viewport = Viewport {
+//            offset: [0.0, 0.0],
+//            extent: [
+//                swapchain.image_extent()[0] as f32,
+//                swapchain.image_extent()[1] as f32,
+//            ],
+//            depth_range: 0f32..=1f32,
+//        };
+//
+//        let triangle_vertex_shader = triangle_vertex_shader::load(vulkan_ctx.device.clone())?;
+//        let triangle_fragment_shader = triangle_fragment_shader::load(vulkan_ctx.device.clone())?;
+//
+//        let (triangle_pipeline, triangle_pipeline_layout) = Self::create_triangle_pipeline(
+//            vulkan_ctx.device.clone(),
+//            swapchain.clone(),
+//            render_pass.clone(),
+//            triangle_vertex_shader.clone(),
+//            triangle_fragment_shader.clone(),
+//        )?;
+//
+//        let sync = Some(sync::now(vulkan_ctx.device.clone()).boxed());
+//
+//        Ok(Self {
+//            vulkan: vulkan_ctx,
+//            window,
+//            frame_number: 0,
+//            swapchain,
+//            swapchain_images,
+//            swapchain_image_views,
+//            recreate_swapchain: false,
+//            command_buffer_allocator,
+//            render_pass,
+//            framebuffers,
+//            viewport,
+//            triangle_vertex_shader,
+//            triangle_fragment_shader,
+//            triangle_pipeline,
+//            triangle_pipeline_layout,
+//            sync,
+//        })
+//    }
+//
+//    pub(super) fn begin_frame(&mut self) -> Result<(), GraphicsError> {
+//        Ok(())
+//    }
+//
+//    pub(super) fn end_frame(&mut self) -> Result<(), GraphicsError> {
+//        Ok(())
+//    }
+//
+//    /// Compute all needed data and present into surface.
+//    pub fn draw(&mut self) -> Result<(), GraphicsError> {
+//        // Skip draw when the window size is zero.
+//        if self.window.inner_size().width == 0 || self.window.inner_size().height == 0 {
+//            return Ok(());
+//        }
+//
+//        self.sync
+//            .as_mut()
+//            .ok_or(GraphicsError::SynchronizationNotInitialized)?
+//            .cleanup_finished();
+//
+//        if self.recreate_swapchain {
+//            println!(
+//                "Recreating swapchain with size: {:?}",
+//                [
+//                    self.window.inner_size().width,
+//                    self.window.inner_size().height
+//                ],
+//            );
+//            self.recretate_swapchain()?;
+//            self.recreate_swapchain = false;
+//        }
+//
+//        let (image_index, suboptimal, acquire_future) =
+//            match acquire_next_image(self.swapchain.clone(), None) {
+//                Ok(next_image) => next_image,
+//                Err(Validated::Error(VulkanError::OutOfDate)) => {
+//                    self.recreate_swapchain = true;
+//                    return Ok(());
+//                }
+//                Err(err) => return Err(GraphicsError::from(err)),
+//            };
+//
+//        if suboptimal {
+//            self.recreate_swapchain = true;
+//        }
+//
+//        let mut builder = AutoCommandBufferBuilder::primary(
+//            &self.command_buffer_allocator,
+//            self.vulkan.queue.queue_family_index(),
+//            CommandBufferUsage::OneTimeSubmit,
+//        )?;
+//
+//        // make clear value flash
+//        let flash = (self.frame_number as f32 / 120.0).sin().abs();
+//
+//        builder
+//            .begin_render_pass(
+//                RenderPassBeginInfo {
+//                    clear_values: vec![Some(ClearValue::Float([0.0, 0.0, flash, 1.0]))],
+//                    ..RenderPassBeginInfo::framebuffer(
+//                        self.framebuffers[image_index as usize].clone(),
+//                    )
+//                },
+//                vulkano::command_buffer::SubpassBeginInfo {
+//                    contents: SubpassContents::Inline,
+//                    ..Default::default()
+//                },
+//            )?
+//            .set_viewport(0, [self.viewport.clone()].into_iter().collect())?;
+//
+//        //for mesh in self.meshes.iter() {
+//        //    builder
+//        //        .bind_pipeline_graphics(self.triangle_pipeline.clone())?
+//        //        .bind_vertex_buffers(0, mesh.vbuffer.clone())?
+//        //        .bind_index_buffer(mesh.ibuffer.clone())?
+//        //        .draw_indexed(mesh.index_count as u32, 1, 0, 0, 0)?;
+//        //}
+//
+//        builder.end_render_pass(SubpassEndInfo::default())?;
+//
+//        let command_buffer = builder.build()?;
+//
+//        let future = self
+//            .sync
+//            .take()
+//            .ok_or(GraphicsError::SynchronizationNotInitialized)?
+//            .join(acquire_future)
+//            .then_execute(self.vulkan.queue.clone(), command_buffer)?
+//            .then_swapchain_present(
+//                self.vulkan.queue.clone(),
+//                SwapchainPresentInfo::swapchain_image_index(self.swapchain.clone(), image_index),
+//            )
+//            .then_signal_fence_and_flush();
+//
+//        match future.map_err(Validated::unwrap) {
+//            Ok(future) => {
+//                self.sync = Some(future.boxed());
+//            }
+//
+//            Err(VulkanError::OutOfDate) => {
+//                self.recreate_swapchain = true;
+//                self.sync = Some(sync::now(self.vulkan.device.clone()).boxed());
+//            }
+//
+//            Err(err) => return Err(GraphicsError::from(err)),
+//        };
+//
+//        self.frame_number += 1;
+//
+//        Ok(())
+//    }
+//}
+
+//impl Debug for Graphics {
+//    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//        todo!()
+//    }
+//}
 
 mod triangle_vertex_shader {
     vulkano_shaders::shader! {
