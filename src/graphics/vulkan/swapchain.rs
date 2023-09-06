@@ -34,12 +34,12 @@ const CANDIDATE_FORMATS: [Format; 3] = [
 ];
 
 /// Abstraction of the Vulkan Swapchain with usefull methods.
-pub(super) struct SwapchainContext {
-    handle: Arc<Swapchain>,
-    images: Vec<Arc<vkImage>>,
-    image_views: Vec<Arc<vkImageView>>,
-    depth_format: Format,
-    depth_attachment: Image,
+pub struct SwapchainContext {
+    pub(super) handle: Arc<Swapchain>,
+    pub(super) images: Vec<Arc<vkImage>>,
+    pub(super) image_views: Vec<Arc<vkImageView>>,
+    pub(super) depth_format: Format,
+    pub(super) depth_attachment: Image,
 }
 
 // TODO: check for duplicated code with the [image](crate::graphics::vulkan::image) module.
@@ -116,6 +116,11 @@ impl SwapchainContext {
     /// Returns the image extent height.
     pub(super) fn image_height(&self) -> f32 {
         self.handle.image_extent()[1] as f32
+    }
+
+    /// Returns the image format.
+    pub(super) fn image_format(&self) -> Format {
+        self.handle.image_format()
     }
 
     /// Creates a new [Vulkan Swapchain](https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkSwapchainKHR.html) and it's Images.
