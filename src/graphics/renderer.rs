@@ -40,24 +40,19 @@ impl Renderer {
 
     /// TODO: document this.
     pub(crate) fn draw_frame(&mut self) -> Result<(), RendererError> {
-        debug!("Starting backend frame");
         let result = self.backend.begin_frame();
 
-        // trace!("Backend begin_frame result: ({:?})", result);
+        let finish_frame = match result {
+            Ok(value) => value,
+            err @ Err(_) => {
+                error!("Backend begin frame error: {:?}", err);
+                err?
+            }
+        };
 
-        if let Err(err) = result {
-            error!("Backend begin frame error: {:?}", err);
-
-            return Err(RendererError::Graphics(err));
-        }
-
-        if let Ok(true) = result {
-            debug!("Ending backend frame");
-
+        if finish_frame {
             self.backend.end_frame()?;
         }
-
-        // self.backend.frame_number += 1;
 
         Ok(())
     }
