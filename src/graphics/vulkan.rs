@@ -424,8 +424,6 @@ impl VulkanContext {
             return Ok(false);
         }
 
-        trace!("Checking for our synchronization mechanism");
-
         self.sync
             .as_mut()
             .ok_or(GraphicsError::SynchronizationNotInitialized)?
@@ -485,19 +483,15 @@ impl VulkanContext {
     pub(crate) fn end_frame(&mut self) -> Result<(), GraphicsError> {
         let command_buffer = &mut self.graphics_command_buffers[self.image_index as usize];
 
-        trace!("Ending command buffer renderpass");
         self.render_pass.end(command_buffer)?;
 
-        trace!("Ending command buffer recording");
         let ended_command_buffer = command_buffer.end()?;
 
-        trace!("Checking for swapchain present future synchronization mechanism");
         let swapchain_future = self
             .swapchain_future
             .take()
             .ok_or(GraphicsError::SynchronizationNotInitialized)?;
 
-        trace!("Checking for synchronization mechanism, submitting and presenting to screen");
         let future = self
             .sync
             .take()
