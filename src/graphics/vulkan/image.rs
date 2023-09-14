@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use log::debug;
+use log::info;
 use vulkano::format::Format;
 use vulkano::image::view::ImageView as vkImageView;
 use vulkano::image::view::ImageViewCreateInfo;
@@ -19,9 +21,10 @@ use vulkano::sync::Sharing;
 use crate::graphics::GraphicsError;
 
 /// Abstraction of the Vulkan Image and Image view.
+#[derive(Debug)]
 pub(super) struct Image {
-    handle: Arc<vkImage>,
-    view: Arc<vkImageView>,
+    pub handle: Arc<vkImage>,
+    pub view: Arc<vkImageView>,
     width: u32,
     height: u32,
 }
@@ -34,6 +37,7 @@ impl Image {
         format: Format,
         tiling: ImageTiling,
         usage: ImageUsage,
+        stencil_usage: Option<ImageUsage>,
         view_aspects: ImageAspects,
         width: u32,
         height: u32,
@@ -44,11 +48,12 @@ impl Image {
             format,
             tiling,
             usage,
+            stencil_usage,
             width,
             height,
         )?;
         // TODO: make creating the view configurable ??
-        let view = Self::create_image_view(image.clone(), format, view_aspects)?;
+        let view = Self::create_image_view(image.clone(), format, view_aspects, usage)?;
 
         Ok(Self {
             handle: image,
@@ -65,6 +70,7 @@ impl Image {
         format: Format,
         tiling: ImageTiling,
         usage: ImageUsage,
+        stencil_usage: Option<ImageUsage>,
         width: u32,
         height: u32,
     ) -> Result<Arc<vkImage>, GraphicsError> {
@@ -85,10 +91,11 @@ impl Image {
             samples: SampleCount::Sample1,
             sharing: Sharing::Exclusive,
             initial_layout: ImageLayout::Undefined,
+            stencil_usage,
             ..Default::default()
         };
 
-        let image = vkImage::new(&memory_allocator, info, Default::default())?;
+        let image = vkImage::new(memory_allocator.clone(), info, Default::default())?;
 
         Ok(image)
     }
@@ -98,7 +105,13 @@ impl Image {
         image: Arc<vkImage>,
         format: Format,
         aspects: ImageAspects,
+        usage: ImageUsage,
     ) -> Result<Arc<vkImageView>, GraphicsError> {
+        info!(
+            "Creating image view with format ({:?}) and aspects ({:?})",
+            format, aspects
+        );
+
         let info = ImageViewCreateInfo {
             view_type: ImageViewType::Dim2d,
             format,
@@ -107,6 +120,7 @@ impl Image {
                 mip_levels: 0..1,
                 array_layers: 0..1,
             },
+            usage,
             ..Default::default()
         };
 

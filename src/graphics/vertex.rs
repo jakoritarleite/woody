@@ -11,15 +11,13 @@ use vulkano::pipeline::graphics::vertex_input::VertexInputRate;
 #[repr(C)]
 #[derive(Debug, Clone, Copy, VulkanoVertex)]
 pub struct Vertex {
-    #[format(R32G32_SFLOAT)]
-    position: Vec2,
     #[format(R32G32B32_SFLOAT)]
-    color: Vec3,
+    position: Vec3,
 }
 
 impl Vertex {
-    pub fn new(position: Vec2, color: Vec3) -> Self {
-        Self { position, color }
+    pub fn new(position: Vec3) -> Self {
+        Self { position }
     }
 
     pub const fn binding_description() -> (u32, VertexInputBindingDescription) {
@@ -32,20 +30,14 @@ impl Vertex {
         )
     }
 
-    pub const fn attribute_descriptions() -> [(u32, VertexInputAttributeDescription); 2] {
+    pub const fn attribute_descriptions() -> [(u32, VertexInputAttributeDescription); 1] {
         let position = VertexInputAttributeDescription {
             binding: 0,
-            format: Format::R32G32_SFLOAT,
+            format: Format::R32G32B32_SFLOAT,
             offset: 0,
         };
 
-        let color = VertexInputAttributeDescription {
-            binding: 0,
-            format: Format::R32G32B32_SFLOAT,
-            offset: std::mem::size_of::<Vec2>() as u32,
-        };
-
-        [(0, position), (1, color)]
+        [(0, position)]
     }
 }
 

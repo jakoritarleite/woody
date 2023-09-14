@@ -1,21 +1,12 @@
 use thiserror::Error;
 
 pub mod camera;
-mod framebuffers;
-pub mod mesh;
-mod pipeline;
-mod render_pass;
 pub mod renderer;
-mod swapchain;
 mod vertex;
 pub mod vulkan;
 
 #[derive(Debug, Error)]
 pub enum GraphicsError {
-    /// Error that happens when creating a window.
-    #[error("Could not create Window: {0}")]
-    WindowCreation(#[from] winit::error::OsError),
-
     /// Error that happens when loading Vulkan library.
     #[error("Could not load Vulkan library: {0}")]
     LibraryLoading(#[from] vulkano::LoadingError),
@@ -49,4 +40,16 @@ pub enum GraphicsError {
 
     #[error("Could not read or write resource from CPU: {0}")]
     HostAccess(#[from] vulkano::sync::HostAccessError),
+
+    #[error("Device does not support any candidate depth formats")]
+    NoSupportedDepthFormat,
+
+    #[error("Could not allocate image: {0}")]
+    ImageAllocate(#[from] vulkano::Validated<vulkano::image::ImageAllocateError>),
+
+    #[error("Cannot perform command in a command_buffer that is in a invalid state: {0}")]
+    InvalidCommandBufferUsage(&'static str),
+
+    #[error("Could not allocate memory: {0}")]
+    MemoryAllocator(#[from] vulkano::memory::allocator::MemoryAllocatorError),
 }

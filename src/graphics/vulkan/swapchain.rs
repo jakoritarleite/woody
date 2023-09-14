@@ -11,6 +11,7 @@ use vulkano::image::view::ImageView as vkImageView;
 use vulkano::image::view::ImageViewCreateInfo;
 use vulkano::image::view::ImageViewType;
 use vulkano::image::Image as vkImage;
+use vulkano::image::ImageAspect;
 use vulkano::image::ImageAspects;
 use vulkano::image::ImageSubresourceRange;
 use vulkano::image::ImageTiling;
@@ -35,6 +36,7 @@ const CANDIDATE_FORMATS: [Format; 3] = [
 
 /// Abstraction of the Vulkan Swapchain with usefull methods.
 pub struct SwapchainContext {
+    allocator: Arc<StandardMemoryAllocator>,
     pub(super) handle: Arc<Swapchain>,
     pub(super) images: Vec<Arc<vkImage>>,
     pub(super) image_views: Vec<Arc<vkImageView>>,
@@ -66,14 +68,15 @@ impl SwapchainContext {
 
             let format_properties = device.physical_device().format_properties(format)?;
 
-            if format_properties
+            let linear_tiling_contains_depth_stencil_attachment = format_properties
                 .linear_tiling_features
-                .intersects(FormatFeatures::DEPTH_STENCIL_ATTACHMENT)
-            {
-                depth_format = Some(format);
-            } else if format_properties
+                .intersects(FormatFeatures::DEPTH_STENCIL_ATTACHMENT);
+            let optimal_tiling_contains_depth_stencil_attachment = format_properties
                 .optimal_tiling_features
-                .intersects(FormatFeatures::DEPTH_STENCIL_ATTACHMENT)
+                .intersects(FormatFeatures::DEPTH_STENCIL_ATTACHMENT);
+
+            if linear_tiling_contains_depth_stencil_attachment
+                || optimal_tiling_contains_depth_stencil_attachment
             {
                 depth_format = Some(format);
             }
@@ -84,22 +87,28 @@ impl SwapchainContext {
             None => return Err(GraphicsError::NoSupportedDepthFormat),
         };
 
-        info!("Found supported depth format: ({:?})", depth_format);
+        info!(
+            "Found supported depth format ({:?}) with aspects ({:?})",
+            depth_format,
+            depth_format.aspects()
+        );
 
         debug!("Creating depth attachment");
 
         let depth_attachment = Image::new(
-            memory_allocator,
+            memory_allocator.clone(),
             ImageType::Dim2d,
             depth_format,
             ImageTiling::Optimal,
             ImageUsage::DEPTH_STENCIL_ATTACHMENT,
-            ImageAspects::DEPTH,
+            Some(ImageUsage::DEPTH_STENCIL_ATTACHMENT),
+            ImageAspects::DEPTH | ImageAspects::STENCIL,
             width,
             height,
         )?;
 
         Ok(Self {
+            allocator: memory_allocator,
             handle: swapchain,
             images,
             image_views,
@@ -165,39 +174,11 @@ impl SwapchainContext {
         Ok((swapchain, images))
     }
 
-    /// Recreates the swapchain for the new window width and height target.
-    ///
-    /// Reuses the same configuration from the current swapchain in `handle` field.
-    pub(super) fn recreate_swapchain(
-        &mut self,
-        width: u32,
-        height: u32,
-    ) -> Result<(), GraphicsError> {
-        let (swapchain, images) = self.handle.recreate(SwapchainCreateInfo {
-            image_extent: [width, height],
-            ..self.handle.create_info()
-        })?;
-
-        let image_views = Self::create_swapchain_image_views(swapchain.clone(), &images)?;
-
-        self.handle = swapchain;
-        self.images = images;
-        self.image_views = image_views;
-
-        Ok(())
-    }
-
     /// Creates [Vulkan ImageView](https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkImageView.html) from current swapchain images.
     fn create_swapchain_image_views(
         swapchain: Arc<Swapchain>,
         images: &[Arc<vkImage>],
     ) -> Result<Vec<Arc<vkImageView>>, GraphicsError> {
-        let components = ComponentMapping {
-            r: ComponentSwizzle::Identity,
-            g: ComponentSwizzle::Identity,
-            b: ComponentSwizzle::Identity,
-            a: ComponentSwizzle::Identity,
-        };
         let subresource_range =
             ImageSubresourceRange::from_parameters(swapchain.image_format(), 1, 1);
 
@@ -209,7 +190,6 @@ impl SwapchainContext {
                     ImageViewCreateInfo {
                         view_type: ImageViewType::Dim2d,
                         format: swapchain.image_format(),
-                        component_mapping: components,
                         subresource_range: subresource_range.clone(),
                         ..Default::default()
                     },
@@ -218,5 +198,44 @@ impl SwapchainContext {
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(image_views)
+    }
+
+    /// Recreates the swapchain for the new window width and height target.
+    ///
+    /// Reuses the same configuration from the current swapchain in `handle` field.
+    pub fn recreate(&mut self, width: u32, height: u32) -> Result<(), GraphicsError> {
+        if width == 0 || height == 0 {
+            info!("Ignoring swapchaing recreation due to one of dimensions being 0");
+            return Ok(());
+        }
+
+        debug!("Recreating swapchain and images");
+        let (swapchain, images) = self.handle.recreate(SwapchainCreateInfo {
+            image_extent: [width, height],
+            ..self.handle.create_info()
+        })?;
+
+        debug!("Recreating swapchain image views");
+        let image_views = Self::create_swapchain_image_views(swapchain.clone(), &images)?;
+
+        debug!("Recreating depth attachment");
+        let depth_attachment = Image::new(
+            self.allocator.clone(),
+            ImageType::Dim2d,
+            self.depth_format,
+            ImageTiling::Optimal,
+            ImageUsage::DEPTH_STENCIL_ATTACHMENT,
+            Some(ImageUsage::DEPTH_STENCIL_ATTACHMENT),
+            ImageAspects::DEPTH | ImageAspects::STENCIL,
+            width,
+            height,
+        )?;
+
+        self.handle = swapchain;
+        self.images = images;
+        self.image_views = image_views;
+        self.depth_attachment = depth_attachment;
+
+        Ok(())
     }
 }

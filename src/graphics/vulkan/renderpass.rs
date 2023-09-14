@@ -3,20 +3,23 @@ use std::sync::Arc;
 use log::debug;
 use log::info;
 use vulkano::command_buffer::RenderPassBeginInfo;
+use vulkano::command_buffer::SubpassBeginInfo;
 use vulkano::device::Device;
 use vulkano::format::ClearValue;
+use vulkano::format::Format;
 use vulkano::image::ImageLayout;
 use vulkano::image::SampleCount;
 use vulkano::render_pass::AttachmentDescription;
+use vulkano::render_pass::AttachmentDescriptionFlags;
 use vulkano::render_pass::AttachmentLoadOp;
 use vulkano::render_pass::AttachmentReference;
 use vulkano::render_pass::AttachmentStoreOp;
-use vulkano::render_pass::Framebuffer;
 use vulkano::render_pass::RenderPass as vkRenderPass;
 use vulkano::render_pass::RenderPassCreateInfo;
 use vulkano::render_pass::SubpassDependency;
 use vulkano::render_pass::SubpassDescription;
 use vulkano::render_pass::SubpassDescriptionFlags;
+use vulkano::shader::spirv::ImageFormat;
 use vulkano::sync::AccessFlags;
 use vulkano::sync::DependencyFlags;
 use vulkano::sync::PipelineStage;
@@ -26,6 +29,7 @@ use crate::graphics::GraphicsError;
 
 use super::command_buffer::CommandBuffer;
 use super::command_buffer::CommandBufferState;
+use super::framebuffer::Framebuffer;
 use super::swapchain::SwapchainContext;
 
 pub enum RenderPassState {
@@ -77,7 +81,10 @@ impl RenderPass {
             ..Default::default()
         };
 
-        info!("Creating depth attachment description");
+        info!(
+            "Creating depth attachment description with format: {:?}",
+            swapchain.depth_format
+        );
         let depth_attachment = AttachmentDescription {
             format: swapchain.depth_format,
             samples: SampleCount::Sample1,
@@ -85,7 +92,7 @@ impl RenderPass {
             store_op: AttachmentStoreOp::DontCare,
             initial_layout: ImageLayout::Undefined,
             final_layout: ImageLayout::DepthStencilAttachmentOptimal,
-            stencil_load_op: Some(AttachmentLoadOp::DontCare),
+            stencil_load_op: Some(AttachmentLoadOp::Clear),
             stencil_store_op: Some(AttachmentStoreOp::DontCare),
             ..Default::default()
         };
@@ -143,30 +150,42 @@ impl RenderPass {
     pub fn begin(
         &self,
         command_buffer: &mut CommandBuffer,
-        frame_buffer: Arc<Framebuffer>,
+        frame_buffer: &Framebuffer,
     ) -> Result<(), GraphicsError> {
         let color_clear_value = ClearValue::Float(self.clear_colors);
         let depth_clear_value = ClearValue::DepthStencil((self.depth, self.stencil));
+        //let depth_clear_value = ClearValue::Depth(self.depth);
 
         let begin_info = RenderPassBeginInfo {
             render_area_offset: [self.render_area[0], self.render_area[1]],
             render_area_extent: [self.render_area[2], self.render_area[3]],
             clear_values: vec![Some(color_clear_value), Some(depth_clear_value)],
-            ..RenderPassBeginInfo::framebuffer(frame_buffer)
+            ..RenderPassBeginInfo::framebuffer(frame_buffer.handle())
         };
 
         command_buffer
-            .handle
-            .begin_render_pass(begin_info, Default::default())?;
+            .handle_mut()?
+            .begin_render_pass(begin_info, SubpassBeginInfo::default())?;
         command_buffer.state = CommandBufferState::InRenderPass;
 
         Ok(())
     }
 
     pub fn end(&self, command_buffer: &mut CommandBuffer) -> Result<(), GraphicsError> {
-        command_buffer.handle.end_render_pass(Default::default())?;
+        command_buffer
+            .handle_mut()?
+            .end_render_pass(Default::default())?;
         command_buffer.state = CommandBufferState::Recording;
 
         Ok(())
+    }
+
+    pub fn handle(&self) -> Arc<vkRenderPass> {
+        self.handle.clone()
+    }
+
+    pub fn update_extent(&mut self, w: u32, h: u32) {
+        self.render_area[2] = w;
+        self.render_area[3] = h;
     }
 }

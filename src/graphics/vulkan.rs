@@ -1,26 +1,26 @@
-use std::fmt::Debug;
 use std::sync::Arc;
+use std::time::Duration;
 
 use log::debug;
 use log::error;
 use log::info;
 use log::trace;
 use log::warn;
+use nalgebra_glm::vec3;
+use vulkano::buffer::BufferCreateInfo;
+use vulkano::buffer::BufferUsage;
+use vulkano::buffer::IndexBuffer;
 use vulkano::command_buffer::allocator::StandardCommandBufferAllocator;
-use vulkano::command_buffer::AutoCommandBufferBuilder;
 use vulkano::command_buffer::CommandBufferUsage;
-use vulkano::command_buffer::RenderPassBeginInfo;
-use vulkano::command_buffer::SubpassContents;
-use vulkano::command_buffer::SubpassEndInfo;
 use vulkano::descriptor_set::allocator::StandardDescriptorSetAllocator;
 use vulkano::device::physical::PhysicalDeviceType;
 use vulkano::device::Device;
 use vulkano::device::DeviceCreateInfo;
 use vulkano::device::DeviceExtensions;
+use vulkano::device::Features;
 use vulkano::device::Queue;
 use vulkano::device::QueueCreateInfo;
 use vulkano::device::QueueFlags;
-use vulkano::format::ClearValue;
 use vulkano::instance::debug::DebugUtilsMessageSeverity;
 use vulkano::instance::debug::DebugUtilsMessageType;
 use vulkano::instance::debug::DebugUtilsMessenger;
@@ -29,38 +29,50 @@ use vulkano::instance::debug::DebugUtilsMessengerCreateInfo;
 use vulkano::instance::Instance;
 use vulkano::instance::InstanceCreateInfo;
 use vulkano::instance::InstanceExtensions;
+use vulkano::memory::allocator::MemoryTypeFilter;
 use vulkano::memory::allocator::StandardMemoryAllocator;
+use vulkano::pipeline::graphics::vertex_input::VertexBuffersCollection;
 use vulkano::pipeline::graphics::viewport::Viewport;
-use vulkano::pipeline::GraphicsPipeline;
-use vulkano::pipeline::PipelineLayout;
-use vulkano::render_pass::Framebuffer;
-use vulkano::shader::ShaderModule;
 use vulkano::swapchain::acquire_next_image;
 use vulkano::swapchain::Surface;
+use vulkano::swapchain::SwapchainAcquireFuture;
 use vulkano::swapchain::SwapchainPresentInfo;
 use vulkano::sync;
 use vulkano::sync::GpuFuture;
+use vulkano::sync::Sharing;
 use vulkano::Validated;
 use vulkano::VulkanError;
 use vulkano::VulkanLibrary;
-use winit::dpi::LogicalSize;
 use winit::event_loop::EventLoop;
 use winit::window::Window;
-use winit::window::WindowBuilder;
 
+use crate::graphics::vertex::Vertex;
+use crate::graphics::vulkan::buffer::Buffer;
+use crate::graphics::vulkan::buffer::BufferSub;
+use crate::graphics::vulkan::framebuffer::generate_framebuffers;
 use crate::graphics::vulkan::renderpass::RenderPass;
 
+use self::command_buffer::CommandBuffer;
+use self::framebuffer::Framebuffer;
+use self::shaders::object::ObjectShader;
 use self::swapchain::SwapchainContext;
 
 use super::GraphicsError;
 
+mod buffer;
 mod command_buffer;
+mod framebuffer;
 mod image;
+mod pipeline;
 mod renderpass;
+mod shaders;
 mod swapchain;
 
 /// Vulkan graphics context.
 pub struct VulkanContext {
+    /// Reference to winit Window.
+    window: Arc<Window>,
+
     /// Vulkan Instance.
     pub(super) instance: Arc<Instance>,
 
@@ -91,7 +103,14 @@ pub struct VulkanContext {
     /// Vulkan swapchain.
     swapchain: SwapchainContext,
 
+    /// Vulkan main render_pass.
     render_pass: RenderPass,
+
+    /// Vulkan Swapchain framebuffers.
+    framebuffers: Vec<Framebuffer>,
+
+    /// Graphics CommandBuffers
+    graphics_command_buffers: Vec<CommandBuffer>,
 
     /// Determines if the swapchain must be recreated.
     ///
@@ -101,8 +120,22 @@ pub struct VulkanContext {
     /// Dynamic viewport used when we resize window.
     pub(super) viewport: Viewport,
 
+    /// The current image we're drawing to.
+    image_index: u32,
+
+    // TODO: refactor this to use "raw" vulkan synchronization instead of this vulkano mechanism.
+    //
+    // We'll need to use the PrimaryCommandBufferAbstract trait to actually execute the command
+    // with command_buffer.execute_after();
+    //
     /// Vulkano Synchronization mechanism.
     sync: Option<Box<dyn GpuFuture>>,
+    swapchain_future: Option<SwapchainAcquireFuture>,
+
+    object_shader: Arc<ObjectShader>,
+
+    object_vertex_buffer: Buffer<Vertex>,
+    object_index_buffer: Buffer<u32>,
 }
 
 impl VulkanContext {
@@ -173,14 +206,24 @@ impl VulkanContext {
 
         let device_extensions = DeviceExtensions {
             khr_swapchain: true,
+            khr_separate_depth_stencil_layouts: true,
             ..DeviceExtensions::empty()
         };
 
+        let device_features = Features {
+            separate_depth_stencil_layouts: true,
+            sampler_anisotropy: true,
+            sample_rate_shading: true,
+            ..Default::default()
+        };
+
         debug!("Device extensions {:?}", device_extensions);
+        debug!("Device features {:?}", device_features);
 
         let (physical_device, queue_family_index) = instance
             .enumerate_physical_devices()?
             .filter(|device| device.supported_extensions().contains(&device_extensions))
+            .filter(|device| device.supported_features().contains(&device_features))
             .filter_map(|device| {
                 device
                     .queue_family_properties()
@@ -214,6 +257,7 @@ impl VulkanContext {
             physical_device,
             DeviceCreateInfo {
                 enabled_extensions: device_extensions,
+                enabled_features: device_features,
                 queue_create_infos: vec![QueueCreateInfo {
                     queue_family_index,
                     queues: vec![1.0],
@@ -249,6 +293,75 @@ impl VulkanContext {
             0,
         )?;
 
+        let framebuffers = generate_framebuffers(&render_pass, &swapchain)?;
+
+        // Create one command buffer for each swapchain image.
+        let mut graphics_command_buffers = Vec::with_capacity(swapchain.images.len());
+        for _ in 0..=swapchain.images.len() {
+            let command_buffer =
+                CommandBuffer::new(command_buffer_allocator.clone(), queue_family_index)?;
+
+            graphics_command_buffers.push(command_buffer);
+        }
+
+        info!("Graphics command buffers created");
+
+        //////// TEMPORARY BUFFER TEST
+
+        let vertices = [
+            Vertex::new(vec3(0.0, -0.5, 0.0)),
+            Vertex::new(vec3(0.5, 0.5, 0.0)),
+            Vertex::new(vec3(0.0, 0.5, 0.0)),
+            Vertex::new(vec3(0.5, -0.5, 0.0)),
+        ];
+        let indices = [2, 1, 0, 1, 3, 0];
+
+        let mut object_vertex_buffer = Buffer::<Vertex>::new(
+            memory_allocator.clone(),
+            BufferUsage::VERTEX_BUFFER | BufferUsage::TRANSFER_DST | BufferUsage::TRANSFER_SRC,
+            MemoryTypeFilter::PREFER_DEVICE,
+            std::mem::size_of::<Vertex>() as u64 * 1024 * 1024,
+        )?;
+
+        let mut object_index_buffer = Buffer::<u32>::new(
+            memory_allocator.clone(),
+            BufferUsage::INDEX_BUFFER | BufferUsage::TRANSFER_DST | BufferUsage::TRANSFER_SRC,
+            MemoryTypeFilter::PREFER_DEVICE,
+            std::mem::size_of::<Vertex>() as u64 * 1024 * 1024,
+        )?;
+
+        let staging_vertex_buffer = Buffer::new_initialized(
+            memory_allocator.clone(),
+            BufferUsage::VERTEX_BUFFER | BufferUsage::TRANSFER_DST | BufferUsage::TRANSFER_SRC,
+            MemoryTypeFilter::PREFER_HOST | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
+            &vertices,
+        )?;
+
+        let staging_index_buffer = Buffer::new_initialized(
+            memory_allocator.clone(),
+            BufferUsage::INDEX_BUFFER | BufferUsage::TRANSFER_DST | BufferUsage::TRANSFER_SRC,
+            MemoryTypeFilter::PREFER_HOST | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
+            &indices,
+        )?;
+
+        object_vertex_buffer.copy_from(
+            command_buffer_allocator.clone(),
+            queue.clone(),
+            staging_vertex_buffer,
+            0,
+            0,
+        )?;
+
+        object_index_buffer.copy_from(
+            command_buffer_allocator.clone(),
+            queue.clone(),
+            staging_index_buffer,
+            0,
+            0,
+        )?;
+
+        //////// TEMPORARY BUFFER TEST
+
         let viewport = Viewport {
             offset: [0.0, 0.0],
             extent: [swapchain.image_width(), swapchain.image_height()],
@@ -257,7 +370,10 @@ impl VulkanContext {
 
         let sync = Some(sync::now(device.clone()).boxed());
 
+        let object_shader = Arc::new(ObjectShader::new(device.clone(), &render_pass)?);
+
         Ok(VulkanContext {
+            window,
             instance,
             #[cfg(debug_assertions)]
             _debug_messenger,
@@ -269,18 +385,148 @@ impl VulkanContext {
             descriptor_set_allocator,
             swapchain,
             render_pass,
+            framebuffers,
+            graphics_command_buffers,
             recreate_swapchain: false,
             viewport,
+            image_index: 0,
             sync,
+            swapchain_future: None,
+            object_shader,
+            object_vertex_buffer,
+            object_index_buffer,
         })
     }
 
-    pub(crate) fn begin_frame(&mut self) -> Result<(), GraphicsError> {
-        unimplemented!()
+    pub(crate) fn begin_frame(&mut self) -> Result<bool, GraphicsError> {
+        if self.recreate_swapchain {
+            debug!("Entering swapchain recreation");
+
+            let width = self.window.inner_size().width;
+            let height = self.window.inner_size().height;
+
+            self.swapchain.recreate(width, height)?;
+
+            debug!("Updating viewport extent to window inner size");
+            self.viewport.extent = self.window.inner_size().into();
+
+            debug!("Updating render_pass extent");
+            self.render_pass.update_extent(width, height);
+
+            debug!("Recreating framebuffers");
+            self.framebuffers = generate_framebuffers(&self.render_pass, &self.swapchain)?;
+
+            // TODO: maybe recalculate the device depth format?
+
+            self.recreate_swapchain = false;
+
+            debug!("Skipping frame due to swapchain recreation");
+            return Ok(false);
+        }
+
+        trace!("Checking for our synchronization mechanism");
+
+        self.sync
+            .as_mut()
+            .ok_or(GraphicsError::SynchronizationNotInitialized)?
+            .cleanup_finished();
+
+        let (image_index, suboptimal, acquire_future) =
+            match acquire_next_image(self.swapchain.handle.clone(), Some(Duration::MAX)) {
+                Ok(next) => next,
+                Err(Validated::Error(VulkanError::OutOfDate)) => {
+                    self.recreate_swapchain = true;
+                    return Ok(false);
+                }
+                Err(err) => return Err(GraphicsError::from(err)),
+            };
+
+        self.image_index = image_index;
+        self.swapchain_future = Some(acquire_future);
+
+        if suboptimal {
+            self.recreate_swapchain = true;
+        }
+
+        let command_buffer = &mut self.graphics_command_buffers[self.image_index as usize];
+        command_buffer.reset();
+        command_buffer.begin(CommandBufferUsage::MultipleSubmit)?;
+
+        command_buffer
+            .handle_mut()?
+            .set_viewport(0, [self.viewport.clone()].into_iter().collect())?;
+
+        self.render_pass.begin(
+            command_buffer,
+            &self.framebuffers[self.image_index as usize],
+        )?;
+
+        self.object_shader.bind(command_buffer)?;
+
+        command_buffer
+            .handle_mut()?
+            .bind_vertex_buffers(0, self.object_vertex_buffer.handle().clone())?;
+
+        command_buffer
+            .handle_mut()?
+            .bind_index_buffer(self.object_index_buffer.handle().clone())?;
+
+        command_buffer.handle_mut()?.draw_indexed(
+            self.object_index_buffer.handle().len() as u32,
+            1,
+            0,
+            0,
+            0,
+        )?;
+
+        Ok(true)
     }
 
     pub(crate) fn end_frame(&mut self) -> Result<(), GraphicsError> {
-        unimplemented!()
+        let command_buffer = &mut self.graphics_command_buffers[self.image_index as usize];
+
+        trace!("Ending command buffer renderpass");
+        self.render_pass.end(command_buffer)?;
+
+        trace!("Ending command buffer recording");
+        let ended_command_buffer = command_buffer.end()?;
+
+        trace!("Checking for swapchain present future synchronization mechanism");
+        let swapchain_future = self
+            .swapchain_future
+            .take()
+            .ok_or(GraphicsError::SynchronizationNotInitialized)?;
+
+        trace!("Checking for synchronization mechanism, submitting and presenting to screen");
+        let future = self
+            .sync
+            .take()
+            .ok_or(GraphicsError::SynchronizationNotInitialized)?
+            .join(swapchain_future)
+            .then_execute(self.queue.clone(), ended_command_buffer)?
+            .then_swapchain_present(
+                self.queue.clone(),
+                SwapchainPresentInfo::swapchain_image_index(
+                    self.swapchain.handle.clone(),
+                    self.image_index,
+                ),
+            )
+            .then_signal_fence_and_flush();
+
+        command_buffer.update_submitted();
+
+        match future.map_err(Validated::unwrap) {
+            Ok(future) => self.sync = Some(future.boxed()),
+
+            Err(VulkanError::OutOfDate) => {
+                self.recreate_swapchain = true;
+                self.sync = Some(sync::now(self.device.clone()).boxed());
+            }
+
+            Err(err) => return Err(GraphicsError::from(err)),
+        }
+
+        Ok(())
     }
 }
 
