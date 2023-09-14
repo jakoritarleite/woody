@@ -2,8 +2,6 @@ use std::fmt;
 use std::time::Duration;
 use std::time::Instant;
 
-use nalgebra_glm::vec2;
-use nalgebra_glm::vec3;
 use thiserror::Error;
 use winit::event::Event;
 use winit::event::WindowEvent;
@@ -11,8 +9,7 @@ use winit::event_loop::ControlFlow;
 use winit::event_loop::EventLoop;
 
 use crate::ecs::world::World;
-use crate::graphics::context::Graphics;
-use crate::graphics::mesh::Rectangle;
+use crate::graphics::renderer::Renderer;
 use crate::input::keyboard::KeyboardEvent;
 use crate::input::CursorEvent;
 use crate::input::MouseEvent;
@@ -21,7 +18,7 @@ use crate::systems::Systems;
 pub struct App {
     pub world: World,
     pub systems: Systems,
-    graphics: Graphics,
+    renderer: Renderer,
     clock: Clock,
     delta_time: f64,
     last_time: f64,
@@ -30,18 +27,20 @@ pub struct App {
 impl App {
     /// Creates a new App.
     pub fn new() -> Result<(Self, EventLoop<()>), Error> {
-        let event_loop = EventLoop::new();
-        // TODO handle error
-        let graphics = Graphics::new(&event_loop).unwrap();
-        let mut systems = Systems::new();
+        #[cfg(debug_assertions)]
+        pretty_env_logger::formatted_builder()
+            .filter_level(log::LevelFilter::Debug)
+            .init();
 
-        systems.add_draw_system(draw_rectangle);
+        let event_loop = EventLoop::new();
+        let systems = Systems::new();
+        let renderer = Renderer::new(&event_loop).expect("creating renderer frontend");
 
         Ok((
             Self {
                 world: World::new(),
                 systems,
-                graphics,
+                renderer,
                 clock: Clock::new(),
                 delta_time: 0.0,
                 last_time: 0.0,
@@ -72,12 +71,11 @@ impl App {
                     let frame_start_time = Instant::now();
 
                     self.systems.run_update_systems(&mut self.world);
-                    self.systems
-                        .run_draw_systems(&mut self.world, &mut self.graphics);
-                    self.graphics.draw().unwrap();
+                    //self.systems
+                    //    .run_draw_systems(&mut self.world, &mut self.graphics);
+                    // self.graphics.draw().unwrap();
 
-                    // TODO: don't clear meshes
-                    self.graphics.meshes.clear();
+                    self.renderer.draw_frame().unwrap();
 
                     let _frame_elapsed_time = frame_start_time.elapsed().as_secs_f64();
 
@@ -86,7 +84,6 @@ impl App {
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::CloseRequested => {
                         *control_flow = ControlFlow::Exit;
-                        println!("Current frame ( Graphics->{})", self.graphics.frame_number);
                     }
 
                     WindowEvent::Resized(size) => {
@@ -94,7 +91,7 @@ impl App {
                             minimized = true;
                         } else {
                             minimized = false;
-                            self.graphics.recreate_swapchain = true;
+                            self.renderer.resize().unwrap();
                         }
                     }
 
@@ -138,21 +135,9 @@ impl App {
     }
 }
 
-fn draw_rectangle(_world: &mut World, graphics: &mut Graphics) {
-    graphics
-        .push_mesh(Rectangle::new(vec2(1700.0, 700.0), vec3(0.0, 0.0, 1.0)))
-        .unwrap();
-    graphics
-        .push_mesh(Rectangle::new(vec2(100.0, 410.0), vec3(1.0, 0.0, 0.0)))
-        .unwrap();
-}
-
 impl fmt::Debug for App {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("App")
-            .field("world", &self.world)
-            .field("renderer", &self.graphics)
-            .finish()
+        f.debug_struct("App").field("world", &self.world).finish()
     }
 }
 
