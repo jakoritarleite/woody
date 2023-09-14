@@ -243,7 +243,7 @@ where
                 regions: [BufferCopy {
                     src_offset: 0,
                     dst_offset: 0,
-                    size: dbg!(src_buffer.len()),
+                    size: src_buffer.len(),
                     ..Default::default()
                 }]
                 .into(),

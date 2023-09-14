@@ -49,8 +49,6 @@ pub fn generate_framebuffers(
 
     let depth = swapchain.depth_attachment.view.clone();
 
-    dbg!(extent, depth.image().extent());
-
     let mut framebuffers = Vec::with_capacity(swapchain.image_views.len());
     for image_view in swapchain.image_views.iter() {
         let framebuffer = Framebuffer::new(
