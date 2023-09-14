@@ -5,7 +5,6 @@ edition = "2021"
 
 [dependencies]
 ecs_macros = { path = "macros/ecs" }
-nalgebra-glm = "0.18.0"
 winit = "0.28.6"
 thiserror = "1.0.44"
 vulkano = { git = "https://github.com/vulkano-rs/vulkano", branch = "master" }

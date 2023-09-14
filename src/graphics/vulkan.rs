@@ -1,12 +1,12 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use glam::vec3;
 use log::debug;
 use log::error;
 use log::info;
 use log::trace;
 use log::warn;
-use nalgebra_glm::vec3;
 use vulkano::buffer::BufferCreateInfo;
 use vulkano::buffer::BufferUsage;
 use vulkano::buffer::IndexBuffer;

@@ -1,7 +1,6 @@
 use bytemuck::Pod;
 use bytemuck::Zeroable;
-use nalgebra_glm::Vec2;
-use nalgebra_glm::Vec3;
+use glam::Vec3;
 use vulkano::format::Format;
 use vulkano::pipeline::graphics::vertex_input::Vertex as VulkanoVertex;
 use vulkano::pipeline::graphics::vertex_input::VertexInputAttributeDescription;
