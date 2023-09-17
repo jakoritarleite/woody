@@ -9,6 +9,8 @@ use winit::event_loop::ControlFlow;
 use winit::event_loop::EventLoop;
 
 use crate::ecs::world::World;
+use crate::event::CreateEvent;
+use crate::event::UpdateEvent;
 use crate::graphics::renderer::Renderer;
 use crate::input::keyboard::KeyboardEvent;
 use crate::input::CursorEvent;
@@ -29,16 +31,18 @@ impl App {
     pub fn new() -> Result<(Self, EventLoop<()>), Error> {
         #[cfg(debug_assertions)]
         pretty_env_logger::formatted_builder()
-            .filter_level(log::LevelFilter::Debug)
+            .filter_level(log::LevelFilter::Trace)
             .init();
 
+        let world = World::new();
+
         let event_loop = EventLoop::new();
-        let systems = Systems::new();
+        let systems = Systems::default();
         let renderer = Renderer::new(&event_loop).expect("creating renderer frontend");
 
         Ok((
             Self {
-                world: World::new(),
+                world,
                 systems,
                 renderer,
                 clock: Clock::new(),
@@ -51,6 +55,8 @@ impl App {
 
     pub fn run(mut self, event_loop: EventLoop<()>) -> ! {
         let mut minimized = false;
+
+        self.systems.fire(&mut self.world, CreateEvent);
 
         self.clock.start();
         self.clock.update();
@@ -70,10 +76,7 @@ impl App {
 
                     let frame_start_time = Instant::now();
 
-                    self.systems.run_update_systems(&mut self.world);
-                    //self.systems
-                    //    .run_draw_systems(&mut self.world, &mut self.graphics);
-                    // self.graphics.draw().unwrap();
+                    self.systems.fire(&mut self.world, UpdateEvent);
 
                     self.renderer.draw_frame().unwrap();
 
@@ -104,16 +107,15 @@ impl App {
 
                         if let Some(keycode) = virtual_keycode {
                             let event = KeyboardEvent::new(state, keycode);
-                            self.systems
-                                .run_keyboard_handler_systems(&mut self.world, event);
+
+                            self.systems.fire(&mut self.world, event);
                         }
                     }
 
                     WindowEvent::MouseInput { state, button, .. } => {
                         let event = MouseEvent::new(state, button);
 
-                        self.systems
-                            .run_mouse_handler_systems(&mut self.world, event);
+                        self.systems.fire(&mut self.world, event);
                     }
 
                     WindowEvent::CursorMoved { position, .. } => {
@@ -122,8 +124,7 @@ impl App {
                             y: position.y,
                         };
 
-                        self.systems
-                            .run_cursor_handler_systems(&mut self.world, event);
+                        self.systems.fire(&mut self.world, event);
                     }
 
                     _ => {}
@@ -132,12 +133,6 @@ impl App {
                 _ => {}
             }
         });
-    }
-}
-
-impl fmt::Debug for App {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("App").field("world", &self.world).finish()
     }
 }
 

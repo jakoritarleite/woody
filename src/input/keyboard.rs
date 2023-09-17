@@ -1,3 +1,5 @@
+use crate::event::Event;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct KeyboardEvent {
     pub state: KeyboardState,
@@ -367,3 +369,5 @@ impl From<winit::event::VirtualKeyCode> for KeyCode {
         }
     }
 }
+
+impl Event for KeyboardEvent {}

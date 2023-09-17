@@ -1,3 +1,5 @@
+use crate::event::Event;
+
 pub mod keyboard;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -5,6 +7,8 @@ pub struct CursorEvent {
     pub x: f64,
     pub y: f64,
 }
+
+impl Event for CursorEvent {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MouseEvent {
@@ -20,6 +24,8 @@ impl MouseEvent {
         }
     }
 }
+
+impl Event for MouseEvent {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MouseState {
