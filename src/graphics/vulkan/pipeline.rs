@@ -41,7 +41,7 @@ use super::renderpass::RenderPass;
 
 pub struct Pipeline {
     handle: Arc<GraphicsPipeline>,
-    layout: Arc<PipelineLayout>,
+    pub layout: Arc<PipelineLayout>,
 }
 
 impl Pipeline {
