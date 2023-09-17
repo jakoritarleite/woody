@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use glam::vec3;
+use glam::Mat4;
 use log::debug;
 use log::error;
 use log::trace;
@@ -51,7 +53,19 @@ impl Renderer {
         };
 
         if finish_frame {
+            let width = self.window.inner_size().width as f32;
+            let height = self.window.inner_size().height as f32;
+
+            let perspective =
+                Mat4::perspective_rh_gl(45_f32.to_radians(), width / height, 0.1, 1000.0);
+
+            let view = Mat4::from_translation(vec3(0.0, 0.0, -30.0));
+
+            self.backend.update_global_state(perspective, view)?;
+
             self.backend.end_frame()?;
+        } else {
+            error!("Skipping frame");
         }
 
         Ok(())
