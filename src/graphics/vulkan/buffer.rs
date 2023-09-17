@@ -24,7 +24,7 @@ use crate::graphics::GraphicsError;
 
 use super::command_buffer::CommandBuffer;
 
-pub struct Buffer<T: BufferContents + Clone + bytemuck::Pod> {
+pub struct Buffer<T: BufferContents + Clone> {
     handle: Subbuffer<[T]>,
     allocator: Arc<StandardMemoryAllocator>,
     usage: BufferUsage,
@@ -35,7 +35,7 @@ pub struct Buffer<T: BufferContents + Clone + bytemuck::Pod> {
 
 impl<T> Buffer<T>
 where
-    T: BufferContents + Clone + bytemuck::Pod,
+    T: BufferContents + Clone,
 {
     pub fn new(
         allocator: Arc<StandardMemoryAllocator>,
