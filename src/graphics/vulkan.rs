@@ -414,6 +414,38 @@ impl VulkanContext {
 
         self.object_shader.bind(command_buffer)?;
 
+        let global_uniform_object = self.object_shader.global_uniform_object_mut();
+
+        global_uniform_object.projection = projection;
+        global_uniform_object.view = view;
+
+        // Writting to the uniform buffer must happen after waiting for the acquire future and
+        // cleaning up, otherwise the buffer is still going to be marked as in use by the device.
+        self.swapchain_future.as_ref().unwrap().wait(None)?;
+        self.sync.as_mut().unwrap().cleanup_finished();
+
+        match self
+            .object_shader
+            .update_global_state(self.image_index, command_buffer)
+        {
+            Ok(_) => {}
+            Err(err) => {
+                error!("Error updating global state: {}", err);
+
+                return Err(err);
+            }
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn update_object(&mut self, model: Mat4) -> Result<(), GraphicsError> {
+        let command_buffer = &mut self.graphics_command_buffers[self.image_index as usize];
+
+        self.object_shader.update_state(model, command_buffer)?;
+
+        self.object_shader.bind(command_buffer)?;
+
         command_buffer
             .handle_mut()?
             .bind_vertex_buffers(0, self.object_vertex_buffer.handle().clone())?;
@@ -421,14 +453,6 @@ impl VulkanContext {
         command_buffer
             .handle_mut()?
             .bind_index_buffer(self.object_index_buffer.handle().clone())?;
-
-        let global_uniform_object = self.object_shader.global_uniform_object_mut();
-
-        global_uniform_object.projection = projection;
-        global_uniform_object.view = view;
-
-        self.object_shader
-            .update_global_state(self.image_index, command_buffer)?;
 
         command_buffer.handle_mut()?.draw_indexed(
             self.object_index_buffer.handle().len() as u32,
@@ -466,11 +490,6 @@ impl VulkanContext {
             debug!("Skipping frame due to swapchain recreation");
             return Ok(false);
         }
-
-        self.sync
-            .as_mut()
-            .ok_or(GraphicsError::SynchronizationNotInitialized)?
-            .cleanup_finished();
 
         let (image_index, suboptimal, acquire_future) =
             match acquire_next_image(self.swapchain.handle.clone(), Some(Duration::MAX)) {
@@ -514,6 +533,11 @@ impl VulkanContext {
         self.render_pass.end(command_buffer)?;
 
         let ended_command_buffer = command_buffer.end()?;
+
+        self.sync
+            .as_mut()
+            .ok_or(GraphicsError::SynchronizationNotInitialized)?
+            .cleanup_finished();
 
         let swapchain_future = self
             .swapchain_future

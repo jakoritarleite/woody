@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use glam::Mat4;
 use log::debug;
 use vulkano::descriptor_set::layout::DescriptorSetLayout;
 use vulkano::device::Device;
@@ -26,12 +27,14 @@ use vulkano::pipeline::graphics::vertex_input::VertexInputState;
 use vulkano::pipeline::graphics::viewport::ViewportState;
 use vulkano::pipeline::graphics::GraphicsPipelineCreateInfo;
 use vulkano::pipeline::layout::PipelineLayoutCreateInfo;
+use vulkano::pipeline::layout::PushConstantRange;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::pipeline::PipelineBindPoint;
 use vulkano::pipeline::PipelineLayout;
 use vulkano::pipeline::PipelineShaderStageCreateInfo;
 use vulkano::pipeline::StateMode;
 use vulkano::render_pass::Subpass;
+use vulkano::shader::ShaderStages;
 
 use crate::graphics::vertex::Vertex;
 use crate::graphics::GraphicsError;
@@ -112,10 +115,22 @@ impl Pipeline {
         let input_assembly_state =
             InputAssemblyState::new().topology(PrimitiveTopology::TriangleList);
 
+        #[allow(dead_code)]
+        struct PushConstant {
+            model: Mat4,
+        }
+
+        let push_constant = PushConstantRange {
+            stages: ShaderStages::VERTEX,
+            offset: 0,
+            size: std::mem::size_of::<PushConstant>() as u32,
+        };
+
         let pipeline_layout = PipelineLayout::new(
             device.clone(),
             PipelineLayoutCreateInfo {
                 set_layouts: descriptor_set_layouts,
+                push_constant_ranges: vec![push_constant],
                 ..Default::default()
             },
         )?;

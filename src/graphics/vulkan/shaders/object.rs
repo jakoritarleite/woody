@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use glam::Mat4;
 use vulkano::descriptor_set::allocator::StandardDescriptorSetAllocator;
 use vulkano::descriptor_set::layout::DescriptorSetLayout;
 use vulkano::descriptor_set::layout::DescriptorSetLayoutBinding;
@@ -14,6 +15,8 @@ use vulkano::memory::allocator::StandardMemoryAllocator;
 use vulkano::pipeline::graphics::vertex_input::VertexInputAttributeDescription;
 use vulkano::pipeline::PipelineBindPoint;
 use vulkano::shader::ShaderStages;
+use vulkano::swapchain::SwapchainAcquireFuture;
+use vulkano::sync::GpuFuture;
 
 use crate::graphics::uniform::GlobalUniformObject;
 use crate::graphics::uniform::UniformBuffer;
@@ -32,7 +35,6 @@ pub struct ObjectShader {
     global_descriptor_sets: Vec<Arc<PersistentDescriptorSet>>,
     global_uniform_object: GlobalUniformObject,
     global_uniform_buffers: Vec<UniformBuffer<GlobalUniformObject>>,
-    descriptor_updated: Vec<bool>,
     pipeline: Pipeline,
 }
 
@@ -108,8 +110,6 @@ impl ObjectShader {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let descriptor_updated = global_descriptor_sets.iter().map(|_| false).collect();
-
         Ok(Self {
             stages,
             pipeline,
@@ -117,8 +117,11 @@ impl ObjectShader {
             global_descriptor_sets,
             global_uniform_object: GlobalUniformObject::default(),
             global_uniform_buffers,
-            descriptor_updated,
         })
+    }
+
+    pub fn global_uniform_object_mut(&mut self) -> &mut GlobalUniformObject {
+        &mut self.global_uniform_object
     }
 
     pub fn bind(
@@ -137,13 +140,6 @@ impl ObjectShader {
     ) -> Result<(), GraphicsError> {
         let descriptor_set = self.global_descriptor_sets[image_index as usize].clone();
 
-        if !self.descriptor_updated[image_index as usize] {
-            self.global_uniform_buffers[image_index as usize]
-                .load_data(self.global_uniform_object)?;
-
-            self.descriptor_updated[image_index as usize] = true;
-        }
-
         command_buffer.handle_mut()?.bind_descriptor_sets(
             PipelineBindPoint::Graphics,
             self.pipeline.layout.clone(),
@@ -151,11 +147,21 @@ impl ObjectShader {
             descriptor_set,
         )?;
 
+        self.global_uniform_buffers[image_index as usize].load_data(self.global_uniform_object)?;
+
         Ok(())
     }
 
-    pub fn global_uniform_object_mut(&mut self) -> &mut GlobalUniformObject {
-        &mut self.global_uniform_object
+    pub fn update_state(
+        &mut self,
+        model: Mat4,
+        command_buffer: &mut CommandBuffer,
+    ) -> Result<(), GraphicsError> {
+        command_buffer
+            .handle_mut()?
+            .push_constants(self.pipeline.layout.clone(), 0, model)?;
+
+        Ok(())
     }
 }
 

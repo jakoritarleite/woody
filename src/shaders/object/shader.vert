@@ -8,6 +8,10 @@ layout(binding = 0) uniform GlobalUniformObject {
     mat4 view;
 } gubo;
 
+layout(push_constant) uniform PushConstants {
+    mat4 model;
+} pc;
+
 void main() {
-    gl_Position = gubo.projection * gubo.view * vec4(inPosition, 1.0);
+    gl_Position = gubo.projection * gubo.view * pc.model * vec4(inPosition, 1.0);
 }

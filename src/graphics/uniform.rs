@@ -59,8 +59,6 @@ impl<T: BufferContents> UniformBuffer<T> {
     }
 
     pub fn load_data(&mut self, data: T) -> Result<(), GraphicsError> {
-        trace!("Loading data into UniformBuffer");
-
         *(self.handle.write()?) = data;
 
         Ok(())
