@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use glam::vec3;
+use glam::Mat4;
 use log::debug;
 use log::error;
 use log::info;
@@ -132,7 +133,7 @@ pub struct VulkanContext {
     sync: Option<Box<dyn GpuFuture>>,
     swapchain_future: Option<SwapchainAcquireFuture>,
 
-    object_shader: Arc<ObjectShader>,
+    object_shader: ObjectShader,
 
     object_vertex_buffer: Buffer<Vertex>,
     object_index_buffer: Buffer<u32>,
@@ -370,7 +371,13 @@ impl VulkanContext {
 
         let sync = Some(sync::now(device.clone()).boxed());
 
-        let object_shader = Arc::new(ObjectShader::new(device.clone(), &render_pass)?);
+        let object_shader = ObjectShader::new(
+            memory_allocator.clone(),
+            descriptor_set_allocator.clone(),
+            device.clone(),
+            &render_pass,
+            swapchain.images.len() as u32,
+        )?;
 
         Ok(VulkanContext {
             window,
@@ -396,6 +403,42 @@ impl VulkanContext {
             object_vertex_buffer,
             object_index_buffer,
         })
+    }
+
+    pub(crate) fn update_global_state(
+        &mut self,
+        projection: Mat4,
+        view: Mat4,
+    ) -> Result<(), GraphicsError> {
+        let command_buffer = &mut self.graphics_command_buffers[self.image_index as usize];
+
+        self.object_shader.bind(command_buffer)?;
+
+        command_buffer
+            .handle_mut()?
+            .bind_vertex_buffers(0, self.object_vertex_buffer.handle().clone())?;
+
+        command_buffer
+            .handle_mut()?
+            .bind_index_buffer(self.object_index_buffer.handle().clone())?;
+
+        let global_uniform_object = self.object_shader.global_uniform_object_mut();
+
+        global_uniform_object.projection = projection;
+        global_uniform_object.view = view;
+
+        self.object_shader
+            .update_global_state(self.image_index, command_buffer)?;
+
+        command_buffer.handle_mut()?.draw_indexed(
+            self.object_index_buffer.handle().len() as u32,
+            1,
+            0,
+            0,
+            0,
+        )?;
+
+        Ok(())
     }
 
     pub(crate) fn begin_frame(&mut self) -> Result<bool, GraphicsError> {
@@ -439,6 +482,9 @@ impl VulkanContext {
                 Err(err) => return Err(GraphicsError::from(err)),
             };
 
+        // Wait until we have the swapchain image
+        acquire_future.wait(None)?;
+
         self.image_index = image_index;
         self.swapchain_future = Some(acquire_future);
 
@@ -457,24 +503,6 @@ impl VulkanContext {
         self.render_pass.begin(
             command_buffer,
             &self.framebuffers[self.image_index as usize],
-        )?;
-
-        self.object_shader.bind(command_buffer)?;
-
-        command_buffer
-            .handle_mut()?
-            .bind_vertex_buffers(0, self.object_vertex_buffer.handle().clone())?;
-
-        command_buffer
-            .handle_mut()?
-            .bind_index_buffer(self.object_index_buffer.handle().clone())?;
-
-        command_buffer.handle_mut()?.draw_indexed(
-            self.object_index_buffer.handle().len() as u32,
-            1,
-            0,
-            0,
-            0,
         )?;
 
         Ok(true)
