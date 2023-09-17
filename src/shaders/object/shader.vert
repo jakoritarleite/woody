@@ -3,9 +3,11 @@
 
 layout(location = 0) in vec3 inPosition;
 
-layout(location = 0) out vec3 outColor;
+layout(binding = 0) uniform GlobalUniformObject {
+    mat4 projection;
+    mat4 view;
+} gubo;
 
 void main() {
-    gl_Position = vec4(inPosition, 1.0);
-    outColor = inPosition;
+    gl_Position = gubo.projection * gubo.view * vec4(inPosition, 1.0);
 }
