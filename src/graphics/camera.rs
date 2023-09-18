@@ -1,5 +1,6 @@
 use std::any::TypeId;
 
+use glam::vec3;
 use glam::EulerRot;
 use glam::Mat4;
 use glam::Quat;
@@ -22,9 +23,6 @@ pub struct OrthographicProjection {
 
 impl Component for OrthographicProjection {}
 
-// TODO: refactor camera component, right now its rotating the frustum and not the world, because
-// of that the movement is a little weird: when I rotate to left and go forward (+z) it actually
-// goes left as if I was doing (-x).
 #[derive(Debug)]
 pub struct Camera {
     pub position: Vec3,
@@ -43,6 +41,30 @@ pub fn clamp(input: f32, min: f32, max: f32) -> f32 {
 }
 
 impl Camera {
+    pub fn forward(&self) -> Vec3 {
+        let view = self.view().to_cols_array();
+
+        vec3(-view[2], -view[6], -view[10])
+    }
+
+    pub fn backward(&self) -> Vec3 {
+        let view = self.view().to_cols_array();
+
+        vec3(view[2], view[6], view[10])
+    }
+
+    pub fn left(&self) -> Vec3 {
+        let view = self.view().to_cols_array();
+
+        vec3(-view[0], -view[4], -view[8])
+    }
+
+    pub fn right(&self) -> Vec3 {
+        let view = self.view().to_cols_array();
+
+        vec3(view[0], view[4], view[8])
+    }
+
     pub fn view(&self) -> Mat4 {
         let view = Mat4::from_rotation_translation(self.rotation.normalize(), self.position);
 
