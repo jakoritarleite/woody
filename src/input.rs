@@ -1,3 +1,5 @@
+use glam::Vec2;
+
 use crate::event::Event;
 
 pub mod keyboard;
@@ -9,6 +11,13 @@ pub struct CursorEvent {
 }
 
 impl Event for CursorEvent {}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MouseMotionEvent {
+    pub delta: Vec2,
+}
+
+impl Event for MouseMotionEvent {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MouseEvent {

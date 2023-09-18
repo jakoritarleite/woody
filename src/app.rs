@@ -3,6 +3,7 @@ use std::time::Duration;
 use std::time::Instant;
 
 use thiserror::Error;
+use winit::event::DeviceEvent;
 use winit::event::Event;
 use winit::event::WindowEvent;
 use winit::event_loop::ControlFlow;
@@ -16,6 +17,7 @@ use crate::graphics::renderer::Renderer;
 use crate::input::keyboard::KeyboardEvent;
 use crate::input::CursorEvent;
 use crate::input::MouseEvent;
+use crate::input::MouseMotionEvent;
 use crate::systems::Systems;
 
 #[derive(Debug, Clone, Copy)]
@@ -139,6 +141,22 @@ impl App {
 
                         self.systems.fire(&mut self.world, self.state, event);
                     }
+
+                    _ => {}
+                },
+
+                Event::DeviceEvent { event, .. } => match event {
+                    DeviceEvent::MouseMotion { delta } => {
+                        let delta = (delta.0 as f32, delta.1 as f32);
+
+                        let event = MouseMotionEvent {
+                            delta: delta.into(),
+                        };
+
+                        self.systems.fire(&mut self.world, self.state, event);
+                    }
+
+                    DeviceEvent::MouseWheel { delta } => todo!(),
 
                     _ => {}
                 },
