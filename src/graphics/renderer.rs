@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use glam::vec3;
 use glam::Mat4;
+use glam::Quat;
+use glam::Vec3;
 use log::error;
 use thiserror::Error;
 use winit::event_loop::EventLoop;
@@ -15,6 +17,8 @@ use super::GraphicsError;
 pub(crate) struct Renderer {
     window: Arc<Window>,
     backend: VulkanContext,
+    projection: Mat4,
+    view: Mat4,
 }
 
 impl Renderer {
@@ -27,14 +31,36 @@ impl Renderer {
 
         let backend = VulkanContext::new(event_loop, window.clone())?;
 
-        Ok(Self { window, backend })
+        let width = window.inner_size().width as f32;
+        let height = window.inner_size().height as f32;
+
+        let perspective = Mat4::perspective_rh_gl(45_f32.to_radians(), width / height, 0.1, 1000.0);
+        let view = Mat4::IDENTITY; //Mat4::from_translation(vec3(0.0, 0.0, 30.0)).inverse();
+
+        Ok(Self {
+            window,
+            backend,
+            projection: perspective,
+            view,
+        })
     }
 
     /// TODO: document this.
     pub(crate) fn resize(&mut self) -> Result<(), RendererError> {
         self.backend.recreate_swapchain = true;
 
+        let width = self.window.inner_size().width as f32;
+        let height = self.window.inner_size().height as f32;
+
+        let perspective = Mat4::perspective_rh_gl(45_f32.to_radians(), width / height, 0.1, 1000.0);
+
+        self.projection = perspective;
+
         Ok(())
+    }
+
+    pub fn set_view(&mut self, view: Mat4) {
+        self.view = view;
     }
 
     /// TODO: document this.
@@ -50,15 +76,13 @@ impl Renderer {
         };
 
         if finish_frame {
-            let width = self.window.inner_size().width as f32;
-            let height = self.window.inner_size().height as f32;
+            let scale = vec3(1.0, 1.0, 1.0) * 10.0;
+            let rotation = Quat::IDENTITY;
+            let translation = vec3(0.0, 0.0, -30.0);
+            let model = Mat4::from_scale_rotation_translation(scale, rotation, translation);
 
-            let perspective =
-                Mat4::perspective_rh_gl(45_f32.to_radians(), width / height, 0.1, 1000.0);
-            let view = Mat4::from_translation(vec3(0.0, 0.0, 30.0)).inverse();
-            let model = Mat4::from_translation(vec3(0.0, 0.0, 0.0));
-
-            self.backend.update_global_state(perspective, view)?;
+            self.backend
+                .update_global_state(self.projection, self.view)?;
             self.backend.update_object(model)?;
 
             self.backend.end_frame()?;
