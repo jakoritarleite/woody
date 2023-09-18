@@ -1,6 +1,10 @@
+use std::ops::Mul;
+
 use bytemuck::Pod;
 use bytemuck::Zeroable;
+use glam::vec3;
 use glam::Vec3;
+use glam::Vec3Swizzles;
 use vulkano::format::Format;
 use vulkano::pipeline::graphics::vertex_input::Vertex as VulkanoVertex;
 use vulkano::pipeline::graphics::vertex_input::VertexInputAttributeDescription;
@@ -37,6 +41,42 @@ impl Vertex {
         };
 
         [(0, position)]
+    }
+}
+
+impl Mul<f32> for Vertex {
+    type Output = Vertex;
+
+    fn mul(self, rhs: f32) -> Self::Output {
+        Vertex {
+            position: self.position * rhs,
+        }
+    }
+}
+
+impl Mul<u32> for Vertex {
+    type Output = Vertex;
+
+    fn mul(self, rhs: u32) -> Self::Output {
+        Vertex {
+            position: self.position * rhs as f32,
+        }
+    }
+}
+
+impl From<[f32; 3]> for Vertex {
+    fn from(value: [f32; 3]) -> Self {
+        Vertex {
+            position: value.into(),
+        }
+    }
+}
+
+impl From<&[f32; 3]> for Vertex {
+    fn from(value: &[f32; 3]) -> Self {
+        Vertex {
+            position: (*value).into(),
+        }
     }
 }
 
