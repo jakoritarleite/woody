@@ -11,19 +11,25 @@ use winit::event_loop::EventLoop;
 use crate::ecs::world::World;
 use crate::event::CreateEvent;
 use crate::event::UpdateEvent;
+use crate::graphics::camera::Camera;
 use crate::graphics::renderer::Renderer;
 use crate::input::keyboard::KeyboardEvent;
 use crate::input::CursorEvent;
 use crate::input::MouseEvent;
 use crate::systems::Systems;
 
+#[derive(Debug, Clone, Copy)]
+pub struct GameState {
+    pub delta_time: f64,
+    pub last_time: f64,
+}
+
 pub struct App {
     pub world: World,
     pub systems: Systems,
     renderer: Renderer,
+    state: GameState,
     clock: Clock,
-    delta_time: f64,
-    last_time: f64,
 }
 
 impl App {
@@ -39,6 +45,10 @@ impl App {
         let event_loop = EventLoop::new();
         let systems = Systems::default();
         let renderer = Renderer::new(&event_loop).expect("creating renderer frontend");
+        let state = GameState {
+            delta_time: 0.0,
+            last_time: 0.0,
+        };
 
         Ok((
             Self {
@@ -46,8 +56,7 @@ impl App {
                 systems,
                 renderer,
                 clock: Clock::new(),
-                delta_time: 0.0,
-                last_time: 0.0,
+                state,
             },
             event_loop,
         ))
@@ -56,12 +65,12 @@ impl App {
     pub fn run(mut self, event_loop: EventLoop<()>) -> ! {
         let mut minimized = false;
 
-        self.systems.fire(&mut self.world, CreateEvent);
+        self.systems.fire(&mut self.world, self.state, CreateEvent);
 
         self.clock.start();
         self.clock.update();
 
-        self.last_time = self.clock.elapsed;
+        self.state.last_time = self.clock.elapsed;
 
         event_loop.run(move |event, _, control_flow| {
             *control_flow = ControlFlow::Poll;
@@ -72,17 +81,21 @@ impl App {
                 Event::MainEventsCleared if !minimized => {
                     self.clock.update();
                     let current_time = self.clock.elapsed;
-                    self.delta_time = current_time - self.last_time;
+                    self.state.delta_time = current_time - self.state.last_time;
 
                     let frame_start_time = Instant::now();
 
-                    self.systems.fire(&mut self.world, UpdateEvent);
+                    self.systems.fire(&mut self.world, self.state, UpdateEvent);
+
+                    if let Some(cam) = self.world.query::<&Camera>().iter().next() {
+                        self.renderer.set_view(cam.view())
+                    };
 
                     self.renderer.draw_frame().unwrap();
 
                     let _frame_elapsed_time = frame_start_time.elapsed().as_secs_f64();
 
-                    self.last_time = current_time;
+                    self.state.last_time = current_time;
                 }
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::CloseRequested => {
@@ -108,14 +121,14 @@ impl App {
                         if let Some(keycode) = virtual_keycode {
                             let event = KeyboardEvent::new(state, keycode);
 
-                            self.systems.fire(&mut self.world, event);
+                            self.systems.fire(&mut self.world, self.state, event);
                         }
                     }
 
                     WindowEvent::MouseInput { state, button, .. } => {
                         let event = MouseEvent::new(state, button);
 
-                        self.systems.fire(&mut self.world, event);
+                        self.systems.fire(&mut self.world, self.state, event);
                     }
 
                     WindowEvent::CursorMoved { position, .. } => {
@@ -124,7 +137,7 @@ impl App {
                             y: position.y,
                         };
 
-                        self.systems.fire(&mut self.world, event);
+                        self.systems.fire(&mut self.world, self.state, event);
                     }
 
                     _ => {}

@@ -1,22 +1,24 @@
 use std::any::Any;
 use std::any::TypeId;
+use std::collections::hash_map::Entry;
 
 use ahash::HashMap;
 
+use crate::app::GameState;
 use crate::ecs::world::World;
 
-pub trait Event {}
+pub trait Event: Copy + Send + Sync {}
 
 pub trait Handler<E: Event> {
-    fn handle(&self, world: &mut World, event: E);
+    fn handle(&self, world: &mut World, state: GameState, event: E);
 }
 
-impl<E> Handler<E> for fn(&mut World, E)
+impl<E> Handler<E> for fn(&mut World, GameState, E)
 where
     E: Event,
 {
-    fn handle(&self, world: &mut World, event: E) {
-        self(world, event)
+    fn handle(&self, world: &mut World, state: GameState, event: E) {
+        self(world, state, event)
     }
 }
 
@@ -26,33 +28,49 @@ pub(crate) struct InnerSystem {
 }
 
 impl InnerSystem {
-    pub fn handle<E: Event + 'static>(&mut self, world: &mut World, event: E) {
-        let handler = self.handlers.get::<fn(&mut World, E)>();
+    pub fn handle<E: Event + 'static>(&mut self, world: &mut World, state: GameState, event: E) {
+        let handlers = self.handlers.get::<fn(&mut World, GameState, E)>();
 
-        if let Some(&handler) = handler {
-            handler.handle(world, event);
+        if let Some(handlers) = handlers {
+            for handler in handlers.iter() {
+                handler.handle(world, state, event);
+            }
         }
     }
 
-    pub fn subscribe<E: Event + 'static>(&mut self, handler: fn(&mut World, E)) {
+    pub fn subscribe<E: Event + 'static>(&mut self, handler: fn(&mut World, GameState, E)) {
         self.handlers.put(handler);
     }
 }
 
 #[derive(Debug, Default)]
 struct ErasedStorage {
-    items: HashMap<TypeId, Box<dyn Any>>,
+    items: HashMap<TypeId, Vec<Box<dyn Any>>>,
 }
 
 impl ErasedStorage {
     pub fn put<T: 'static>(&mut self, item: T) {
-        self.items.insert(TypeId::of::<T>(), Box::new(item));
+        match self.items.entry(TypeId::of::<T>()) {
+            Entry::Occupied(mut entry) => entry.get_mut().push(Box::new(item)),
+            Entry::Vacant(entry) => {
+                entry.insert(vec![Box::new(item)]);
+            }
+        };
     }
 
-    pub fn get<T: 'static>(&self) -> Option<&T> {
-        let any = self.items.get(&TypeId::of::<T>());
-        // Downcast back to concrete type
-        any.map(|value| value.downcast_ref::<T>().unwrap())
+    pub fn get<T: 'static>(&self) -> Option<Vec<&T>> {
+        let erased = self.items.get(&TypeId::of::<T>());
+
+        if let Some(items) = erased {
+            return Some(
+                items
+                    .iter()
+                    .map(|item| item.downcast_ref::<T>().unwrap())
+                    .collect(),
+            );
+        }
+
+        None
     }
 }
 
