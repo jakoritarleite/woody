@@ -1,193 +1,121 @@
-use super::archetypes::Archetypes;
+use super::archetype::Archetype;
+use super::archetype::Archetypes;
 use super::component::Bundle;
-use super::entity::Entities;
+use super::component::Components;
 use super::entity::Entity;
-use super::query::state::QueryState;
 use super::query::Query;
+use super::query::QueryState;
 
-/// World is our database
+/// The ECS world where all entities and components will be stored.
 #[derive(Debug, Default)]
 pub struct World {
-    pub(crate) entities: Entities,
-    pub(crate) archetypes: Archetypes,
+    /// All entities stored in this world.
+    pub(super) entities: Vec<Entity>,
+    /// All entity archetypes stored in this world.
+    pub(super) archetypes: Archetypes,
+    /// Our storages where which component will go.
+    ///
+    /// Note: each component has it's own storage.
+    pub(super) components: Components,
 }
 
-// TODO despawn
 impl World {
-    pub fn new() -> World {
-        World {
-            entities: Entities::new(),
-            archetypes: Archetypes::new(),
+    /// Creates a new instance of [`World`].
+    pub fn new() -> Self {
+        Self {
+            entities: Vec::with_capacity(100_000_000),
+            archetypes: Archetypes::with_capacity(100_000),
+            components: Components::with_capacity(100_000),
         }
     }
 
-    pub fn spawn<B>(&mut self, bundle: B) -> Entity
-    where
-        B: Bundle,
-    {
-        let components_ids = B::components_ids();
+    /// Spawns an entity in world.
+    ///
+    /// Example:
+    ///
+    /// ```no_run
+    /// use mt_ecs::world::World;
+    /// use mt_ecs::component::Component;
+    ///
+    /// struct Position(i64, i64);
+    /// struct Velocity(i8);
+    ///
+    /// impl Component for Position {}
+    /// impl Component for Velocity {}
+    ///
+    /// let mut world = World::new();
+    ///
+    /// world.spawn((Position(0, 0,), Velocity(10)));
+    /// ```
+    pub fn spawn<B: Bundle>(&mut self, entity: B) {
+        let entity_index = self.entities.len();
 
-        let archetype = Archetypes::archetype_from_type_ids(&components_ids);
-        let archetype_storage = self.archetypes.init_storage(archetype, &components_ids);
+        let c_types = B::components_types();
 
-        let mut entity_row_index = 0;
-        bundle.components(archetype_storage, &mut |row_index| {
-            entity_row_index = row_index;
-        });
+        let archetype_id = Archetype::id_from_c_types(&c_types);
+        let mut archetype = self.archetypes.insert(archetype_id, &c_types);
 
-        self.entities
-            .spawn(entity_row_index, archetype, components_ids)
+        archetype.entities_mut().push(entity_index);
+
+        // Create a ComponentStorage for each new component.
+        for &c_type in c_types.iter() {
+            let _ = self.components.insert(c_type);
+        }
+
+        let mut c_ptrs = Vec::with_capacity(100);
+        entity.store_components(&mut self.components, &mut c_ptrs);
+
+        let entity = Entity::new(entity_index as u128, archetype_id, c_ptrs);
+
+        self.entities.push(entity);
     }
 
-    pub fn query<Q: Query>(&mut self) -> QueryState<Q> {
+    pub fn query<Q: Query>(&mut self) -> QueryState<'_, Q> {
         QueryState::new(self)
     }
 }
 
-#[cfg(test)]
 mod test {
-    use std::any::TypeId;
-
-    use crate::ecs::{
-        archetypes::Archetypes,
-        component::{Bundle, Component},
-    };
-
-    use super::World;
+    use crate::ecs::component::Component;
 
     #[derive(Debug)]
-    struct Position(i64, i64);
-
+    struct Position(u8);
     impl Component for Position {}
 
-    impl Bundle for Position {
-        fn components_ids() -> Vec<TypeId> {
-            vec![TypeId::of::<Self>()]
-        }
-
-        fn components(
-            self,
-            storage: &mut crate::ecs::archetypes::ArchetypeStorage,
-            row_indexes: &mut impl FnMut(usize),
-        ) {
-            let row_index = storage.init_component(self);
-
-            row_indexes(row_index);
-        }
-    }
-
     #[derive(Debug)]
-    struct Velocity(u64, u64);
-
+    struct Velocity(u8);
     impl Component for Velocity {}
 
-    impl Bundle for Velocity {
-        fn components_ids() -> Vec<TypeId> {
-            vec![TypeId::of::<Self>()]
-        }
+    #[test]
+    fn spawn() {
+        let mut world = super::World::new();
 
-        fn components(
-            self,
-            storage: &mut crate::ecs::archetypes::ArchetypeStorage,
-            row_indexes: &mut impl FnMut(usize),
-        ) {
-            let row_index = storage.init_component(self);
+        world.spawn(Position(0));
+        world.spawn((Velocity(0), Position(1)));
+        world.spawn((Velocity(1), Position(2)));
+        world.spawn(Velocity(2));
 
-            row_indexes(row_index);
-        }
-    }
-
-    #[derive(Debug)]
-    struct Health(i8);
-
-    impl Component for Health {}
-
-    impl Bundle for Health {
-        fn components_ids() -> Vec<TypeId> {
-            vec![TypeId::of::<Self>()]
-        }
-
-        fn components(
-            self,
-            storage: &mut crate::ecs::archetypes::ArchetypeStorage,
-            row_indexes: &mut impl FnMut(usize),
-        ) {
-            let row_index = storage.init_component(self);
-
-            row_indexes(row_index);
-        }
+        // Checks if we have only 2 component storages.
+        assert_eq!(world.components.len(), 2);
+        // Checks if we have 4 entities.
+        assert_eq!(world.entities.len(), 4);
+        // Checks if we have 3 archetypes.
+        assert_eq!(world.archetypes.len(), 3);
     }
 
     #[test]
-    fn spawn_entity() {
-        let mut world = World::new();
+    fn query() {
+        let mut world = super::World::new();
 
-        world.spawn((Position(0, 0), Velocity(1, 1)));
-        world.spawn((Position(0, 0), Velocity(1, 1)));
-        world.spawn(Position(0, 0));
-        world.spawn((Position(0, 0), Velocity(1, 1)));
+        world.spawn(Position(0));
+        world.spawn((Velocity(0), Position(1)));
+        world.spawn((Velocity(1), Position(2)));
+        world.spawn(Velocity(2));
 
-        assert!(world.entities.counter == 4);
-        assert!(world.entities.entities.len() == 4);
-        assert!(world.archetypes.len() == 2);
+        let mut query = world.query::<(&Velocity, &Position)>();
 
-        let pos_vel_archetype_storage = world
-            .archetypes
-            .get(Archetypes::archetype_from_bundle::<(Position, Velocity)>());
-        let pos_archetype_storage = world
-            .archetypes
-            .get(Archetypes::archetype_from_bundle::<Position>());
-        let vel_archetype_storage = world
-            .archetypes
-            .get(Archetypes::archetype_from_bundle::<Velocity>());
-
-        assert!(pos_vel_archetype_storage.is_some());
-        assert!(pos_archetype_storage.is_some());
-        assert!(vel_archetype_storage.is_none());
-    }
-
-    #[test]
-    fn query_entity_ok() {
-        let mut world = World::new();
-
-        world.spawn((Position(10, 200), Velocity(1, 10)));
-        world.spawn((Position(-150, 300), Velocity(1, 2)));
-        world.spawn(Position(0, 0));
-        world.spawn((Position(10, 10), Velocity(2, 1)));
-        world.spawn(Velocity(100, 100));
-        world.spawn((Position(10, 10), Health(10)));
-
-        let mut query = world.query::<(&Velocity, &mut Position)>();
-
-        let (velocity, mut position) = match query.get(0) {
-            Ok((velocity, position)) => (velocity, position),
-            _ => panic!("Query that should return Ok returned Err"),
-        };
-
-        position.0 += velocity.0 as i64;
-        position.1 += velocity.1 as i64;
-
-        assert_eq!(position.0, 11);
-        assert_eq!(position.1, 210);
-    }
-
-    #[test]
-    fn query_entity_err() {
-        let mut world = World::new();
-
-        world.spawn((Position(10, 200), Velocity(1, 10)));
-        world.spawn((Position(-150, 300), Velocity(1, 2)));
-        world.spawn(Position(0, 0));
-        world.spawn((Position(10, 10), Velocity(2, 1)));
-        world.spawn(Velocity(100, 100));
-        world.spawn((Position(10, 10), Health(10)));
-
-        let mut query = world.query::<(&Velocity, &mut Health)>();
-
-        assert!(query.get(0).is_err());
-
-        for i in query.iter() {
-            dbg!(i);
+        for (velocity, pos) in query.iter() {
+            println!("{:?}, {:?}", velocity.value(), pos.value());
         }
     }
 }

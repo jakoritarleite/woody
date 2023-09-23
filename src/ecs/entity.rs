@@ -1,90 +1,36 @@
-use std::{any::TypeId, collections::HashMap};
+use rayon::prelude::ParallelIterator;
 
-use super::archetypes::Archetype;
+use super::archetype::ArchetypeId;
+use super::component::ComponentType;
 
-/// Definition of a entity which is just an identifier
-pub type Entity = u64;
-
-/// Collection of entities that are in the world
-#[derive(Debug, Default)]
-pub struct Entities {
-    pub counter: Entity,
-    pub entities: HashMap<Entity, EntityDataPointer>,
-}
-
+/// Entity stored in our world.
 #[derive(Debug, Clone)]
-pub struct EntityDataPointer {
-    pub(crate) row_index: usize,
-    pub(crate) archetype: Archetype,
-    pub(crate) components: Vec<TypeId>,
+pub struct Entity {
+    /// Unique identifier.
+    id: u128,
+    /// Pointer to the [`Archetype`](crate::world::Archetype) stored in world, which is the key of the archetype in our
+    /// `archetypes` [`World`](crate::world::World) field.
+    archetype: ArchetypeId,
+    /// Pointer to the components index stored in [`ComponentStorage`](crate::component::ComponentStorage).
+    //c_ptrs: DashMap<ComponentType, usize, BuildHasherDefault<FxHasher>>,
+    c_ptrs: Vec<(ComponentType, usize)>,
 }
 
-impl Entities {
-    pub fn new() -> Entities {
-        Entities {
-            counter: 0,
-            entities: HashMap::new(),
+impl Entity {
+    /// Creates a new [`Entity`] with its archetype and component ptrs indexex.
+    pub fn new(id: u128, archetype: ArchetypeId, c_ptrs: Vec<(ComponentType, usize)>) -> Self {
+        Self {
+            id,
+            archetype,
+            c_ptrs,
         }
     }
 
-    pub fn spawn(
-        &mut self,
-        row_index: usize,
-        archetype: Archetype,
-        components: Vec<TypeId>,
-    ) -> Entity {
-        let entity = self.counter;
-        self.counter += 1;
-
-        self.entities.insert(
-            entity,
-            EntityDataPointer {
-                row_index,
-                archetype,
-                components,
-            },
-        );
-
-        entity
-    }
-
-    pub fn get(&self, entity: &Entity) -> Option<(Entity, &EntityDataPointer)> {
-        self.entities
-            .get(entity)
-            .map(|data_pointer| (*entity, data_pointer))
-    }
-
-    pub fn entities_by_archetype(&self, archetype: Archetype) -> Vec<(Entity, EntityDataPointer)> {
-        self.entities
+    pub(super) unsafe fn c_ptr_unchecked(&self, c_type: ComponentType) -> usize {
+        self.c_ptrs
             .iter()
-            .filter(|(_, data_pointer)| data_pointer.archetype == archetype)
-            .map(|(id, data_pointer)| (*id, data_pointer.clone()))
-            .collect()
-    }
-
-    pub fn entities_by_component_id(
-        &self,
-        component_id: &TypeId,
-    ) -> Vec<(Entity, EntityDataPointer)> {
-        self.entities
-            .iter()
-            .filter(|(_, data_pointer)| data_pointer.components.contains(component_id))
-            .map(|(id, data_pointer)| (*id, data_pointer.clone()))
-            .collect()
-    }
-
-    pub fn entities_by_components_ids(
-        &self,
-        components_ids: &[TypeId],
-    ) -> Vec<(Entity, EntityDataPointer)> {
-        self.entities
-            .iter()
-            .filter(|(_, data_pointer)| {
-                components_ids
-                    .iter()
-                    .all(|component_id| data_pointer.components.contains(component_id))
-            })
-            .map(|(id, data_pointer)| (*id, data_pointer.clone()))
-            .collect()
+            .find(|(ct, _)| *ct == c_type)
+            .map(|(_, index)| *index)
+            .unwrap_unchecked()
     }
 }

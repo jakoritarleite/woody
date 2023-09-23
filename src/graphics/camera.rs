@@ -84,19 +84,3 @@ impl Camera {
 }
 
 impl Component for Camera {}
-
-impl Bundle for Camera {
-    fn components_ids() -> Vec<std::any::TypeId> {
-        vec![TypeId::of::<Self>()]
-    }
-
-    fn components(
-        self,
-        storage: &mut crate::ecs::archetypes::ArchetypeStorage,
-        row_indexes: &mut impl FnMut(usize),
-    ) {
-        let row_index = storage.init_component(self);
-
-        row_indexes(row_index);
-    }
-}
