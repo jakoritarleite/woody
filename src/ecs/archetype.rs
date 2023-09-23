@@ -22,26 +22,40 @@ impl Archetypes {
     }
 
     /// Returns how many archetypes we have.
-    pub(super) fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.0.len()
     }
 
+    /// Checks if its empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Gets an archetype reference from the [`ArchetypeId`].
+    #[allow(dead_code)]
     pub(super) fn archetype(&self, id: ArchetypeId) -> Option<FxRef<'_, ArchetypeId, Archetype>> {
         self.0.get(&id)
     }
 
     /// Gets an archetype reference but unwraps the value from Option.
+    ///
+    /// SAFETY: you must guarantee that the archetype of the specified id already exists.
+    #[allow(dead_code)]
     unsafe fn archetype_unchecked(&self, id: ArchetypeId) -> FxRef<'_, ArchetypeId, Archetype> {
         self.0.get(&id).unwrap_unchecked()
     }
 
     /// Gets a mutable reference to archetype from the [`ArchetypeId`].
+    #[allow(dead_code)]
     pub(super) fn archetype_mut(&mut self, id: ArchetypeId) -> Option<FxRefMut<'_, ArchetypeId, Archetype>> {
         self.0.get_mut(&id)
     }
 
     /// Gets a mutable archetype reference but unwraps the value from Option.
+    ///
+    /// SAFETY: you must guarantee that the archetype of the specified id already exists.
+    #[allow(dead_code)]
     unsafe fn archetype_mut_unchecked(&mut self, id: ArchetypeId) -> FxRefMut<'_, ArchetypeId, Archetype> {
         self.0.get_mut(&id).unwrap_unchecked()
     }
@@ -49,19 +63,6 @@ impl Archetypes {
     /// Inserts a new archetype into the map and a mutable reference to it. If an archetype already exists
     /// it returns a mutable reference to it.
     pub(super) fn insert(&mut self, id: ArchetypeId, c_types: &[ComponentType]) -> FxRefMut<'_, ArchetypeId, Archetype> {
-        // TODO: refactor to be more efficient.
-        // Checking for contains key does not make sense every time
-        //if self.0.contains_key(&id) {
-        //    // SAFETY: we've already checked if entry exists.
-        //    return unsafe {self.archetype_mut_unchecked(id) }
-        //}
-        
-        // SAFETY: we've already checked if entry exists and returned it, so this will only run if
-        // entry does not exists.
-        //unsafe {
-        //    self.insert_unchecked(id, c_types)
-        //}
-
         match self.0.entry(id) {
             Entry::Vacant(entry) => entry.insert(Archetype::new(c_types.to_vec())),
             Entry::Occupied(entry) => entry.into_ref()
@@ -69,11 +70,15 @@ impl Archetypes {
     }
 
     /// Inserts a new archetype into the map but ignores if the entry already exists.
-    unsafe fn insert_unchecked(&mut self, id: ArchetypeId, c_types: &[ComponentType]) -> FxRefMut<'_, ArchetypeId, Archetype> {
+    ///
+    /// SAFETY: you must guarantee that the entry does already not exists.
+    #[allow(dead_code)]
+    pub(super) unsafe fn insert_unchecked(&mut self, id: ArchetypeId, c_types: &[ComponentType]) -> FxRefMut<'_, ArchetypeId, Archetype> {
         self.0.insert(id, Archetype::new(c_types.to_vec()));
         self.archetype_mut_unchecked(id)
     }
 
+    /// Itarates over Archetypes.
     pub(super) fn iter(&self) -> impl ParallelIterator<Item = FxRefMulti<ArchetypeId, Archetype>> {
         self.0.par_iter()
     }

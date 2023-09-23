@@ -43,11 +43,13 @@ impl Components {
     }
 
     /// Returns how many components we have.
+    #[allow(dead_code)]
     pub(super) fn len(&self) -> usize {
         self.0.len()
     }
 
     /// Gets a component storage reference for the [`ComponentType`].
+    #[allow(dead_code)]
     pub(super) fn storage(
         &self,
         c_type: ComponentType,
@@ -64,6 +66,7 @@ impl Components {
     }
 
     /// Gets a component storage mutable reference for the [`ComponentType`].
+    #[allow(dead_code)]
     pub(super) fn storage_mut(
         &mut self,
         c_type: ComponentType,
@@ -147,6 +150,7 @@ pub struct ComponentStorage {
 
 impl ComponentStorage {
     /// Creates a new [ComponentStorage].
+    #[allow(dead_code)]
     pub(super) fn new<T: Component>() -> Self {
         Self::from_c_type(T::component_type())
     }
@@ -163,6 +167,7 @@ impl ComponentStorage {
     ///
     /// Note: if the component you're trying to push is not the same type as this storage it won't
     /// be pushed.
+    #[allow(dead_code)]
     pub(super) fn push<T: Component>(&mut self, component: T) -> Option<usize> {
         if self.c_type != TypeId::of::<T>() {
             return None;
@@ -181,19 +186,27 @@ impl ComponentStorage {
     }
 
     /// Returns an iterator over the inner component in this storage.
+    #[allow(dead_code)]
     pub(super) fn iter(&self) -> impl ParallelIterator<Item = &ComponentPtr> {
         self.ptrs.par_iter()
     }
 
     /// Returns an iterator over the inner component in this storage.
+    #[allow(dead_code)]
     pub(super) fn iter_mut(&mut self) -> impl ParallelIterator<Item = &mut ComponentPtr> {
         self.ptrs.par_iter_mut()
     }
 
+    /// Gets a component reference from the specified index.
+    #[allow(dead_code)]
     pub(super) fn get<T: Component>(&self, index: usize) -> Option<&T> {
         self.ptrs.get(index).and_then(|ptr| ptr.cast_ref::<T>())
     }
 
+    /// Gets a component reference from the specified index but unwraps.
+    ///
+    /// SAFETY: you must know that the index is valid before calling this method, this way you
+    /// assure that the component exists.
     pub(super) unsafe fn get_unchecked<T: Component>(&self, index: usize) -> &T {
         unsafe {
             self.ptrs
@@ -204,6 +217,10 @@ impl ComponentStorage {
         }
     }
 
+    /// Gets a mutable reference to component from the specified index but unwraps.
+    ///
+    /// SAFETY: you must know that the index is valid before calling this method, this way you
+    /// assure that the component exists.
     pub(super) unsafe fn get_mut_unchecked<T: Component>(&mut self, index: usize) -> &mut T {
         unsafe {
             self.ptrs
@@ -213,67 +230,6 @@ impl ComponentStorage {
                 .unwrap_unchecked()
         }
     }
-}
-
-pub trait Query {
-    type Item<'a>: Send + Sync;
-    type Storage<'a>: Send + Sync;
-
-    fn init_state(world: &mut World) -> Self::Storage<'_>;
-
-    fn fetch(storage: Self::Storage<'_>, entity_row: u64) -> Self::Item<'_>;
-}
-
-impl<T: Component> Query for &T {
-    type Item<'a> = Option<&'a T>;
-    type Storage<'a> = Option<&'a ComponentStorage>;
-
-    fn init_state(world: &mut World) -> Self::Storage<'_> {
-        world
-            .storages
-            .iter()
-            .find(|storage| storage.c_type == TypeId::of::<T>())
-    }
-
-    fn fetch(storage: Self::Storage<'_>, entity_row: u64) -> Self::Item<'_> {
-        storage.and_then(|storage| {
-            storage
-                .ptrs
-                .get(entity_row as usize)
-                .and_then(ComponentPtr::cast_ref)
-        })
-    }
-}
-
-pub struct ROQuery<'a, Q: Query> {
-    matched_entities: Vec<u64>,
-    storage: Q::Storage<'a>,
-}
-
-impl<'a, Q: Query> ROQuery<'a, Q> {
-    pub fn new(world: &'a mut World) -> Self {
-        Self {
-            matched_entities: vec![0, 1, 2, 3],
-            storage: Q::init_state(world),
-        }
-    }
-
-    pub fn iter(&self) -> impl ParallelIterator<Item = Q::Item<'a>> + '_
-    where
-        Q::Storage<'a>: Copy,
-    {
-        self.matched_entities
-            .par_iter()
-            .map(|entity| Q::fetch(self.storage, *entity))
-    }
-}
-
-pub struct World {
-    storages: Vec<ComponentStorage>,
-}
-
-impl World {
-    pub fn spawn<T: Component>(component: T) {}
 }
 
 impl<T: Component> Bundle for T {
@@ -336,28 +292,3 @@ tuple_impl!(A, B, C, D, E, F, G, H, I);
 tuple_impl!(A, B, C, D, E, F, G, H, I, J);
 tuple_impl!(A, B, C, D, E, F, G, H, I, J, K);
 tuple_impl!(A, B, C, D, E, F, G, H, I, J, K, L);
-
-#[test]
-fn threading() {
-    #[derive(Debug, Clone)]
-    struct Position(u8);
-
-    impl Component for Position {}
-
-    let mut storage = ComponentStorage::new::<Position>();
-
-    storage.push(Position(0));
-    storage.push(Position(1));
-    storage.push(Position(2));
-    storage.push(Position(3));
-
-    let mut world = World {
-        storages: vec![storage],
-    };
-
-    let query = ROQuery::<&Position>::new(&mut world);
-
-    query.iter().for_each(|component| {
-        dbg!(component);
-    });
-}

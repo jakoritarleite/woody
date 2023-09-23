@@ -1,5 +1,3 @@
-use rayon::prelude::ParallelIterator;
-
 use super::archetype::ArchetypeId;
 use super::component::ComponentType;
 
@@ -26,6 +24,20 @@ impl Entity {
         }
     }
 
+    /// Returns the entity id.
+    pub fn id(&self) -> u128 {
+        self.id
+    }
+
+    /// Returns the entity ArchetypeId.
+    pub fn archetype_id(&self) -> ArchetypeId {
+        self.archetype
+    }
+
+    /// Gets the [`ComponentPtr`](crate::ecs::component::ComponentPtr) index in our
+    /// [`ComponentStorage`](crate::ecs::component) for the specified [`ComponentType`].
+    ///
+    /// SAFETY: you must guarantee that this entity has the specified component type.
     pub(super) unsafe fn c_ptr_unchecked(&self, c_type: ComponentType) -> usize {
         self.c_ptrs
             .iter()
