@@ -204,39 +204,6 @@ macro_rules! tuple_impl {
     };
 }
 
-//macro_rules! tuple_impl {
-//    ( $( $name:ident ),* ) => {
-//        impl<$($name: Query),*> Query for ($($name,)*) {
-//            #![allow(non_snake_case)]
-//
-//            type Item<'a> = ( $( $name::Item<'a>, )* );
-//            type World<'a> = ( $( $name::World<'a>, )* );
-//            type State<'a> = ( $( $name::State<'a>, )* );
-//
-//            fn components_types() -> Vec<ComponentType> {
-//                vec![ $( $name::components_types(), )* ]
-//                    .iter()
-//                    .flatten()
-//                    .map(|c_type| *c_type)
-//                    .collect()
-//            }
-//
-//            fn init_state(world: Self::World<'_>) -> Self::State<'_> {
-//                let ($($name,)*) = world;
-//
-//                ( $( $name::init_state($name), )* )
-//            }
-//
-//            fn fetch(state: Self::State<'_>, entity: Entity) -> Self::Item<'_> {
-//                let ($($name,)*) = state;
-//
-//                ( $( $name::fetch($name, entity.clone()), )* )
-//
-//            }
-//        }
-//    };
-//}
-//
 tuple_impl!(A);
 tuple_impl!(A, B);
 tuple_impl!(A, B, C);
