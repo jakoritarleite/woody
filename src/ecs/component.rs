@@ -11,6 +11,8 @@ use rustc_hash::FxHasher;
 use super::FxRef;
 use super::FxRefMut;
 
+pub use ecs_macros::Component;
+
 pub trait Component: Send + Sync + Any {
     fn component_type() -> ComponentType {
         TypeId::of::<Self>()

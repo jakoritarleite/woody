@@ -34,14 +34,14 @@ impl World {
     /// Example:
     ///
     /// ```no_run
-    /// use mt_ecs::world::World;
-    /// use mt_ecs::component::Component;
+    /// use woody::ecs::world::World;
+    /// use woody::ecs::component::Component;
     ///
+    /// #[derive(Debug, Component)]
     /// struct Position(i64, i64);
-    /// struct Velocity(i8);
     ///
-    /// impl Component for Position {}
-    /// impl Component for Velocity {}
+    /// #[derive(Debug, Component)]
+    /// struct Velocity(i8);
     ///
     /// let mut world = World::new();
     ///

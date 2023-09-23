@@ -7,10 +7,6 @@ use dashmap::mapref::one::Ref;
 use dashmap::mapref::one::RefMut;
 use rustc_hash::FxHasher;
 
-#[cfg(feature = "dhat-heap")]
-#[global_allocator]
-static ALLOC: dhat::Alloc = dhat::Alloc;
-
 pub mod archetype;
 pub mod component;
 pub mod entity;
