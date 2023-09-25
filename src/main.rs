@@ -1,5 +1,3 @@
-use std::time::Instant;
-
 use ecs_macros::Component;
 use glam::vec3;
 use glam::Quat;
@@ -13,6 +11,7 @@ use woody::event::UpdateEvent;
 use woody::graphics::camera::Camera;
 use woody::input::keyboard::KeyCode;
 use woody::input::keyboard::KeyboardEvent;
+use woody::input::keyboard::KeyboardState;
 use woody::input::MouseButton;
 use woody::input::MouseEvent;
 use woody::input::MouseMotionEvent;
@@ -65,6 +64,10 @@ fn handle_player_movement(world: &mut World, state: GameState, event: KeyboardEv
     query.par_iter().for_each(|mut cam| {
         let mut velocity = Vec3::ZERO;
 
+        if event.state == KeyboardState::Released {
+            return;
+        }
+
         velocity += match event.keycode {
             KeyCode::W => cam.forward(),
             KeyCode::S => cam.backward(),
@@ -78,23 +81,6 @@ fn handle_player_movement(world: &mut World, state: GameState, event: KeyboardEv
             cam.position += velocity * SPEED * state.delta_time as f32;
         }
     });
-
-    //if let Some(mut cam) = world.query::<&mut Camera>().iter().next() {
-    //    let mut velocity = Vec3::ZERO;
-
-    //    velocity += match event.keycode {
-    //        KeyCode::W => cam.forward(),
-    //        KeyCode::S => cam.backward(),
-    //        KeyCode::A => cam.left(),
-    //        KeyCode::D => cam.right(),
-
-    //        _ => vec3(0.0, 0.0, 0.0),
-    //    };
-
-    //    if !velocity.abs_diff_eq(Vec3::ZERO, 0.0002) {
-    //        cam.position += velocity * SPEED * state.delta_time as f32;
-    //    }
-    //};
 }
 
 fn handle_camera_movement(world: &mut World, state: GameState, event: MouseMotionEvent) {
@@ -108,11 +94,6 @@ fn handle_camera_movement(world: &mut World, state: GameState, event: MouseMotio
         cam.yaw(-delta.x * SENSITIVITY * state.delta_time as f32);
         cam.pitch(delta.y * SENSITIVITY * state.delta_time as f32);
     });
-
-    //if let Some(mut cam) = world.query::<&mut Camera>().iter().next() {
-    //    cam.yaw(-delta.x * SENSITIVITY * state.delta_time as f32);
-    //    cam.pitch(delta.y * SENSITIVITY * state.delta_time as f32);
-    //};
 }
 
 fn handle_shot(_world: &mut World, _: GameState, event: MouseEvent) {
