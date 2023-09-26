@@ -14,8 +14,6 @@ It's a journey of discovery and self-expression, and I'm excited to share my pro
 - [Features](#features)
 - [Getting Started](#getting-started)
 - [Usage](#usage)
-- [Contributing](#contributing)
-- [License](#license)
 
 ## About
 
