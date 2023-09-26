@@ -6,7 +6,7 @@ With Woody, I explore the realms of game development,
 experimenting and tinkering with Rust and Vulkan to create my own gaming experiences.
 It's a journey of discovery and self-expression, and I'm excited to share my progress and learnings with you.
 
-![Logo](assets/logo.jpg)
+<img src="assets/logo.jpg" width="200">
 
 ## Table of Contents
 
