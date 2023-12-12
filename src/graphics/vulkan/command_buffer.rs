@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use vulkano::command_buffer::allocator::StandardCommandBufferAllocator;
-use vulkano::command_buffer::AutoCommandBufferBuilder;
 use vulkano::command_buffer::CommandBufferUsage;
 use vulkano::command_buffer::PrimaryAutoCommandBuffer;
+use vulkano::command_buffer::RecordingCommandBuffer;
 
 use crate::graphics::GraphicsError;
 
@@ -18,17 +18,14 @@ pub enum CommandBufferState {
 type Allocator = Arc<StandardCommandBufferAllocator>;
 
 pub struct CommandBuffer {
-    handle: Option<AutoCommandBufferBuilder<PrimaryAutoCommandBuffer<Allocator>, Allocator>>,
+    handle: Option<RecordingCommandBuffer<PrimaryAutoCommandBuffer>>,
     allocator: Allocator,
     queue_family_index: u32,
     pub(super) state: CommandBufferState,
 }
 
 impl CommandBuffer {
-    pub fn new(
-        allocator: Arc<StandardCommandBufferAllocator>,
-        queue_family_index: u32,
-    ) -> Result<Self, GraphicsError> {
+    pub fn new(allocator: Allocator, queue_family_index: u32) -> Result<Self, GraphicsError> {
         Ok(Self {
             handle: None,
             allocator,
@@ -38,8 +35,11 @@ impl CommandBuffer {
     }
 
     pub fn begin(&mut self, usage: CommandBufferUsage) -> Result<(), GraphicsError> {
-        let builder =
-            AutoCommandBufferBuilder::primary(&self.allocator, self.queue_family_index, usage)?;
+        let builder = RecordingCommandBuffer::primary(
+            self.allocator.clone(),
+            self.queue_family_index,
+            usage,
+        )?;
 
         self.handle = Some(builder);
         self.state = CommandBufferState::Recording;
@@ -47,9 +47,9 @@ impl CommandBuffer {
         Ok(())
     }
 
-    pub fn end(&mut self) -> Result<Arc<PrimaryAutoCommandBuffer<Allocator>>, GraphicsError> {
+    pub fn end(&mut self) -> Result<Arc<PrimaryAutoCommandBuffer>, GraphicsError> {
         if let Some(handle) = self.handle.take() {
-            let command_buffer = handle.build()?;
+            let command_buffer = handle.end()?;
             self.state = CommandBufferState::RecordingEnded;
 
             return Ok(command_buffer);
@@ -62,10 +62,7 @@ impl CommandBuffer {
 
     pub fn handle_mut(
         &mut self,
-    ) -> Result<
-        &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer<Allocator>, Allocator>,
-        GraphicsError,
-    > {
+    ) -> Result<&mut RecordingCommandBuffer<PrimaryAutoCommandBuffer>, GraphicsError> {
         let handle = match self.handle {
             Some(ref mut handle) => handle,
             None => {
