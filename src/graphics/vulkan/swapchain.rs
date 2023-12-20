@@ -151,7 +151,7 @@ impl SwapchainContext {
         // Check if Surface supports using Mailbox, if not use Fifo.
         let present_mode = device
             .physical_device()
-            .surface_present_modes(&surface)?
+            .surface_present_modes(&surface, Default::default())?
             .find(|mode| *mode == PresentMode::Mailbox)
             .unwrap_or(PresentMode::Fifo);
 

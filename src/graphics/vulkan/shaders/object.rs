@@ -7,7 +7,7 @@ use vulkano::descriptor_set::layout::DescriptorSetLayout;
 use vulkano::descriptor_set::layout::DescriptorSetLayoutBinding;
 use vulkano::descriptor_set::layout::DescriptorSetLayoutCreateInfo;
 use vulkano::descriptor_set::layout::DescriptorType;
-use vulkano::descriptor_set::PersistentDescriptorSet;
+use vulkano::descriptor_set::DescriptorSet;
 use vulkano::descriptor_set::WriteDescriptorSet;
 use vulkano::device::Device;
 use vulkano::format::Format;
@@ -32,7 +32,7 @@ const SHADER_STAGE_COUNT: usize = 2;
 pub struct ObjectShader {
     stages: [ShaderStage; SHADER_STAGE_COUNT],
     global_descriptor_set_layout: Arc<DescriptorSetLayout>,
-    global_descriptor_sets: Vec<Arc<PersistentDescriptorSet>>,
+    global_descriptor_sets: Vec<Arc<DescriptorSet>>,
     global_uniform_object: GlobalUniformObject,
     global_uniform_buffers: Vec<UniformBuffer<GlobalUniformObject>>,
     pipeline: Pipeline,
@@ -79,6 +79,7 @@ impl ObjectShader {
                 binding: 0,
                 format: Format::R32G32B32_SFLOAT,
                 offset: 0,
+                ..Default::default()
             },
         )];
 
@@ -101,8 +102,8 @@ impl ObjectShader {
         let global_descriptor_sets = global_uniform_buffers
             .iter()
             .map(|buffer| {
-                PersistentDescriptorSet::new(
-                    &descriptor_set_allocator,
+                DescriptorSet::new(
+                    descriptor_set_allocator.clone(),
                     global_ubo_descriptor_set_layout.clone(),
                     vec![WriteDescriptorSet::buffer(0, buffer.handle())],
                     vec![],

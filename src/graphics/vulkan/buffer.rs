@@ -11,7 +11,6 @@ use vulkano::command_buffer::allocator::StandardCommandBufferAllocator;
 use vulkano::command_buffer::BufferCopy;
 use vulkano::command_buffer::CommandBufferUsage;
 use vulkano::command_buffer::CopyBufferInfoTyped;
-use vulkano::command_buffer::PrimaryCommandBufferAbstract;
 use vulkano::device::Queue;
 use vulkano::memory::allocator::AllocationCreateInfo;
 use vulkano::memory::allocator::MemoryTypeFilter;

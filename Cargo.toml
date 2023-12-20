@@ -5,10 +5,9 @@ edition = "2021"
 
 [dependencies]
 ecs_macros = { path = "macros/ecs" }
-winit = "0.28.6"
+winit = "0.29.4"
 thiserror = "1.0.44"
 vulkano = { git = "https://github.com/vulkano-rs/vulkano", rev = "1f99160" }
-vulkano-win = { git = "https://github.com/vulkano-rs/vulkano", rev = "1f99160" }
 vulkano-shaders = { git = "https://github.com/vulkano-rs/vulkano", rev = "1f99160" }
 bytemuck = "1.13.1"
 lazy_static = "1.4.0"
@@ -21,6 +20,8 @@ dashmap = { version = "5.5.3", features = ["rayon"] }
 dhat = "0.3.2"
 paste = "1.0.14"
 rustc-hash = { version = "1.1.0", features = ["std"] }
+raw-window-handle = "0.6.0"
+smallvec = "1.11.2"
 
 [build-dependencies]
 shaderc = "0.8.2"

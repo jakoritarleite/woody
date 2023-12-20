@@ -12,6 +12,12 @@ pub enum GraphicsError {
     #[error("Could not load Vulkan library: {0}")]
     LibraryLoading(#[from] vulkano::LoadingError),
 
+    #[error("Could not fetch window or display handle: {0}")]
+    Handle(#[from] raw_window_handle::HandleError),
+
+    #[error("Could not create swapchain handle from window")]
+    SwapchainFromWindow(#[from] vulkano::swapchain::FromWindowError),
+
     #[error("Could not validate: {0}")]
     VulkanValidation(#[from] vulkano::Validated<vulkano::VulkanError>),
 
@@ -37,7 +43,10 @@ pub enum GraphicsError {
     WrongShaderEntryPoint(&'static str),
 
     #[error("Could not allocate buffer: {0}")]
-    BufferAllocate(#[from] vulkano::Validated<vulkano::buffer::BufferAllocateError>),
+    BufferAllocate(#[from] vulkano::Validated<vulkano::buffer::AllocateBufferError>),
+
+    #[error("Could not allocate image: {0}")]
+    ImageAllocate(#[from] vulkano::Validated<vulkano::image::AllocateImageError>),
 
     #[error("Could not read or write resource from CPU: {0}")]
     HostAccess(#[from] vulkano::sync::HostAccessError),
@@ -45,9 +54,8 @@ pub enum GraphicsError {
     #[error("Device does not support any candidate depth formats")]
     NoSupportedDepthFormat,
 
-    #[error("Could not allocate image: {0}")]
-    ImageAllocate(#[from] vulkano::Validated<vulkano::image::ImageAllocateError>),
-
+    //#[error("Could not allocate image: {0}")]
+    //ImageAllocate(#[from] vulkano::Validated<vulkano::image::ImageAllocateError>),
     #[error("Cannot perform command in a command_buffer that is in a invalid state: {0}")]
     InvalidCommandBufferUsage(&'static str),
 

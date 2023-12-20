@@ -3,6 +3,7 @@ use std::time::Duration;
 use std::time::Instant;
 
 use thiserror::Error;
+
 use winit::event::DeviceEvent;
 use winit::event::Event;
 use winit::event::WindowEvent;
@@ -39,12 +40,12 @@ impl App {
     pub fn new() -> Result<(Self, EventLoop<()>), Error> {
         #[cfg(debug_assertions)]
         pretty_env_logger::formatted_builder()
-            .filter_level(log::LevelFilter::Trace)
+            .filter_level(log::LevelFilter::Debug)
             .init();
 
         let world = World::new();
 
-        let event_loop = EventLoop::new();
+        let event_loop = EventLoop::new()?;
         let systems = Systems::default();
         let renderer = Renderer::new(&event_loop).expect("creating renderer frontend");
         let state = GameState {
@@ -64,7 +65,7 @@ impl App {
         ))
     }
 
-    pub fn run(mut self, event_loop: EventLoop<()>) -> ! {
+    pub fn run(mut self, event_loop: EventLoop<()>) -> Result<(), Error> {
         let mut minimized = false;
 
         self.systems.fire(&mut self.world, self.state, CreateEvent);
@@ -74,13 +75,11 @@ impl App {
 
         self.state.last_time = self.clock.elapsed;
 
-        event_loop.run(move |event, _, control_flow| {
-            *control_flow = ControlFlow::Poll;
-
-            if !minimized {}
+        event_loop.run(move |event, window_target| {
+            window_target.set_control_flow(ControlFlow::Poll);
 
             match event {
-                Event::MainEventsCleared if !minimized => {
+                Event::AboutToWait if !minimized => {
                     self.clock.update();
                     let current_time = self.clock.elapsed;
                     self.state.delta_time = current_time - self.state.last_time;
@@ -99,9 +98,10 @@ impl App {
 
                     self.state.last_time = current_time;
                 }
+
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::CloseRequested => {
-                        *control_flow = ControlFlow::Exit;
+                        window_target.exit();
                     }
 
                     WindowEvent::Resized(size) => {
@@ -113,18 +113,28 @@ impl App {
                         }
                     }
 
-                    WindowEvent::KeyboardInput { input, .. } => {
-                        let winit::event::KeyboardInput {
-                            state,
-                            virtual_keycode,
-                            ..
-                        } = input;
+                    WindowEvent::KeyboardInput { event, .. } => {
+                        //winit::event::KeyEvent {
+                        //    physical_key: todo!(),
+                        //    logical_key: todo!(),
+                        //    text: todo!(),
+                        //    location: todo!(),
+                        //    state: todo!(),
+                        //    repeat: todo!(),
+                        //    platform_specific: todo!(),
+                        //};
 
-                        if let Some(keycode) = virtual_keycode {
-                            let event = KeyboardEvent::new(state, keycode);
+                        let winit::event::KeyEvent {
+                            state, logical_key, ..
+                        } = event;
 
-                            self.systems.fire(&mut self.world, self.state, event);
-                        }
+                        // TODO: handle new KeyEvent shit
+
+                        //if let Some(keycode) = logical_key {
+                        //    let event = KeyboardEvent::new(state, keycode);
+
+                        //    self.systems.fire(&mut self.world, self.state, event);
+                        //}
                     }
 
                     WindowEvent::MouseInput { state, button, .. } => {
@@ -163,7 +173,9 @@ impl App {
 
                 _ => {}
             }
-        });
+        })?;
+
+        Ok(())
     }
 }
 
@@ -193,4 +205,6 @@ impl Clock {
 pub enum Error {
     //#[error("Could not create window: {0}")]
     // Renderer(#[from] graphics::GraphicsError),
+    #[error("event loop failed: {0}")]
+    EventLoop(#[from] winit::error::EventLoopError),
 }

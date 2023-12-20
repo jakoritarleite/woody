@@ -8,6 +8,8 @@ use log::error;
 use log::info;
 use log::trace;
 use log::warn;
+use raw_window_handle::HasDisplayHandle;
+use smallvec::smallvec;
 use vulkano::buffer::BufferCreateInfo;
 use vulkano::buffer::BufferUsage;
 use vulkano::buffer::IndexBuffer;
@@ -34,6 +36,7 @@ use vulkano::memory::allocator::MemoryTypeFilter;
 use vulkano::memory::allocator::StandardMemoryAllocator;
 use vulkano::pipeline::graphics::vertex_input::VertexBuffersCollection;
 use vulkano::pipeline::graphics::viewport::Viewport;
+use vulkano::pipeline::DynamicState;
 use vulkano::swapchain::acquire_next_image;
 use vulkano::swapchain::Surface;
 use vulkano::swapchain::SwapchainAcquireFuture;
@@ -143,7 +146,7 @@ impl VulkanContext {
     /// Creates a new [`VulkanContext`] instance.
     pub fn new(event_loop: &EventLoop<()>, window: Arc<Window>) -> Result<Self, GraphicsError> {
         let library = VulkanLibrary::new()?;
-        let required_extensions = Surface::required_extensions(event_loop);
+        let required_extensions = Surface::required_extensions(event_loop)?;
 
         let extensions = InstanceExtensions {
             #[cfg(debug_assertions)]
@@ -274,8 +277,10 @@ impl VulkanContext {
             device.clone(),
             Default::default(),
         ));
-        let descriptor_set_allocator =
-            Arc::new(StandardDescriptorSetAllocator::new(device.clone()));
+        let descriptor_set_allocator = Arc::new(StandardDescriptorSetAllocator::new(
+            device.clone(),
+            Default::default(),
+        ));
 
         let swapchain = SwapchainContext::new(
             memory_allocator.clone(),
@@ -491,15 +496,17 @@ impl VulkanContext {
             return Ok(false);
         }
 
-        let (image_index, suboptimal, acquire_future) =
-            match acquire_next_image(self.swapchain.handle.clone(), Some(Duration::MAX)) {
-                Ok(next) => next,
-                Err(Validated::Error(VulkanError::OutOfDate)) => {
-                    self.recreate_swapchain = true;
-                    return Ok(false);
-                }
-                Err(err) => return Err(GraphicsError::from(err)),
-            };
+        let (image_index, suboptimal, acquire_future) = match acquire_next_image(
+            self.swapchain.handle.clone(),
+            Some(Duration::from_nanos(u64::MAX - 1)),
+        ) {
+            Ok(next) => next,
+            Err(Validated::Error(VulkanError::OutOfDate)) => {
+                self.recreate_swapchain = true;
+                return Ok(false);
+            }
+            Err(err) => return Err(GraphicsError::from(err)),
+        };
 
         // Wait until we have the swapchain image
         acquire_future.wait(None)?;
@@ -517,7 +524,7 @@ impl VulkanContext {
 
         command_buffer
             .handle_mut()?
-            .set_viewport(0, [self.viewport.clone()].into_iter().collect())?;
+            .set_viewport(0, smallvec![self.viewport.clone()])?;
 
         self.render_pass.begin(
             command_buffer,

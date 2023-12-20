@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use glam::Mat4;
 use log::debug;
+use smallvec::smallvec;
 use vulkano::descriptor_set::layout::DescriptorSetLayout;
 use vulkano::device::Device;
 use vulkano::image::SampleCount;
@@ -24,15 +25,16 @@ use vulkano::pipeline::graphics::rasterization::PolygonMode;
 use vulkano::pipeline::graphics::rasterization::RasterizationState;
 use vulkano::pipeline::graphics::vertex_input::VertexInputAttributeDescription;
 use vulkano::pipeline::graphics::vertex_input::VertexInputState;
+use vulkano::pipeline::graphics::viewport::Viewport;
 use vulkano::pipeline::graphics::viewport::ViewportState;
 use vulkano::pipeline::graphics::GraphicsPipelineCreateInfo;
 use vulkano::pipeline::layout::PipelineLayoutCreateInfo;
 use vulkano::pipeline::layout::PushConstantRange;
+use vulkano::pipeline::DynamicState;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::pipeline::PipelineBindPoint;
 use vulkano::pipeline::PipelineLayout;
 use vulkano::pipeline::PipelineShaderStageCreateInfo;
-use vulkano::pipeline::StateMode;
 use vulkano::render_pass::Subpass;
 use vulkano::shader::ShaderStages;
 
@@ -57,7 +59,10 @@ impl Pipeline {
         is_wireframe: bool,
     ) -> Result<Self, GraphicsError> {
         // TODO: make this configurable?
-        let viewport_state = ViewportState::viewport_dynamic_scissor_irrelevant();
+        let viewport_state = ViewportState {
+            // viewports: smallvec![Viewport::default()],
+            ..Default::default()
+        };
 
         let polygon_mode = if is_wireframe {
             PolygonMode::Line
@@ -67,9 +72,9 @@ impl Pipeline {
 
         let rasterizer_state = RasterizationState {
             polygon_mode,
-            line_width: StateMode::Fixed(1.0),
-            cull_mode: StateMode::Fixed(CullMode::Back),
-            front_face: StateMode::Fixed(FrontFace::CounterClockwise),
+            line_width: 1.0,
+            cull_mode: CullMode::Back,
+            front_face: FrontFace::CounterClockwise,
             ..Default::default()
         };
 
@@ -81,9 +86,8 @@ impl Pipeline {
 
         let depth_stencil_state = DepthStencilState {
             depth: Some(DepthState {
-                write_enable: StateMode::Fixed(true),
-                compare_op: StateMode::Fixed(CompareOp::Less),
-                ..Default::default()
+                write_enable: true,
+                compare_op: CompareOp::Less,
             }),
             ..Default::default()
         };
@@ -98,7 +102,7 @@ impl Pipeline {
                 alpha_blend_op: BlendOp::Add,
             }),
             color_write_mask: ColorComponents::all(),
-            color_write_enable: StateMode::Fixed(true),
+            color_write_enable: true,
         };
 
         let color_blend_state = ColorBlendState {
@@ -112,8 +116,10 @@ impl Pipeline {
             .binding(vertex_binding, vertex_description)
             .attributes(vertex_input_attribute_descriptions);
 
-        let input_assembly_state =
-            InputAssemblyState::new().topology(PrimitiveTopology::TriangleList);
+        let input_assembly_state = InputAssemblyState {
+            topology: PrimitiveTopology::TriangleList,
+            ..Default::default()
+        };
 
         #[allow(dead_code)]
         struct PushConstant {
