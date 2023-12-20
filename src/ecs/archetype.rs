@@ -125,10 +125,10 @@ impl Archetype {
         c_types
             .iter()
             .map(|c_type| 
-                // SAFETY: it's ok to transmute since ComponentType (TypeId) is basically u64.
-                unsafe { std::mem::transmute::<ComponentType, u64>(*c_type) } as u128
+                // SAFETY: it's ok to transmute since ComponentType (TypeId) is basically u128.
+                unsafe { std::mem::transmute::<ComponentType, u128>(*c_type) }
             )
-            .sum()
+            .fold(0_u128, |acc, id| acc.saturating_add(id))
     }
 
     /// Checks if this archetype contains certain component types.
