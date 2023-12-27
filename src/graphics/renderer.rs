@@ -15,7 +15,7 @@ use super::GraphicsError;
 
 /// Renderer is a frontend that will be used by our systems.
 pub(crate) struct Renderer {
-    window: Arc<Window>,
+    pub(crate) window: Arc<Window>,
     backend: VulkanContext,
     projection: Mat4,
     view: Mat4,

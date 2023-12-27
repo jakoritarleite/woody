@@ -79,27 +79,28 @@ impl App {
             window_target.set_control_flow(ControlFlow::Poll);
 
             match event {
-                Event::AboutToWait if !minimized => {
-                    self.clock.update();
-                    let current_time = self.clock.elapsed;
-                    self.state.delta_time = current_time - self.state.last_time;
-
-                    let frame_start_time = Instant::now();
-
-                    self.systems.fire(&mut self.world, self.state, UpdateEvent);
-
-                    if let Some(cam) = self.world.query::<&Camera>().iter().next() {
-                        self.renderer.set_view(cam.view())
-                    };
-
-                    self.renderer.draw_frame().unwrap();
-
-                    let _frame_elapsed_time = frame_start_time.elapsed().as_secs_f64();
-
-                    self.state.last_time = current_time;
-                }
-
+                Event::AboutToWait => self.renderer.window.request_redraw(),
                 Event::WindowEvent { event, .. } => match event {
+                    WindowEvent::RedrawRequested if !minimized => {
+                        self.clock.update();
+                        let current_time = self.clock.elapsed;
+                        self.state.delta_time = current_time - self.state.last_time;
+
+                        let frame_start_time = Instant::now();
+
+                        self.systems.fire(&mut self.world, self.state, UpdateEvent);
+
+                        if let Some(cam) = self.world.query::<&Camera>().iter().next() {
+                            self.renderer.set_view(cam.view())
+                        };
+
+                        self.renderer.draw_frame().unwrap();
+
+                        let _frame_elapsed_time = frame_start_time.elapsed().as_secs_f64();
+
+                        self.state.last_time = current_time;
+                    }
+
                     WindowEvent::CloseRequested => {
                         window_target.exit();
                     }
