@@ -58,11 +58,7 @@ impl Pipeline {
         stages: Vec<PipelineShaderStageCreateInfo>,
         is_wireframe: bool,
     ) -> Result<Self, GraphicsError> {
-        // TODO: make this configurable?
-        let viewport_state = ViewportState {
-            // viewports: smallvec![Viewport::default()],
-            ..Default::default()
-        };
+        let viewport_state = ViewportState::default();
 
         let polygon_mode = if is_wireframe {
             PolygonMode::Line
