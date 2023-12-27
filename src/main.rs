@@ -30,12 +30,12 @@ fn main() {
     let (mut app, event_loop) = App::new().unwrap();
 
     app.systems.subscribe(setup);
-    app.systems.subscribe(positions);
+    // app.systems.subscribe(positions);
     app.systems.subscribe(handle_player_movement);
     app.systems.subscribe(handle_camera_movement);
-    app.systems.subscribe(handle_shot);
+    // app.systems.subscribe(handle_shot);
 
-    app.run(event_loop);
+    app.run(event_loop).unwrap();
 }
 
 fn setup(world: &mut World, _: GameState, _: CreateEvent) {
@@ -69,10 +69,10 @@ fn handle_player_movement(world: &mut World, state: GameState, event: KeyboardEv
         }
 
         velocity += match event.keycode {
-            KeyCode::W => cam.forward(),
-            KeyCode::S => cam.backward(),
-            KeyCode::A => cam.left(),
-            KeyCode::D => cam.right(),
+            KeyCode::KeyW => cam.forward(),
+            KeyCode::KeyS => cam.backward(),
+            KeyCode::KeyA => cam.left(),
+            KeyCode::KeyD => cam.right(),
 
             _ => vec3(0.0, 0.0, 0.0),
         };

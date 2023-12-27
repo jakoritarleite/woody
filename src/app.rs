@@ -115,27 +115,17 @@ impl App {
                     }
 
                     WindowEvent::KeyboardInput { event, .. } => {
-                        //winit::event::KeyEvent {
-                        //    physical_key: todo!(),
-                        //    logical_key: todo!(),
-                        //    text: todo!(),
-                        //    location: todo!(),
-                        //    state: todo!(),
-                        //    repeat: todo!(),
-                        //    platform_specific: todo!(),
-                        //};
-
                         let winit::event::KeyEvent {
-                            state, logical_key, ..
+                            state,
+                            physical_key,
+                            ..
                         } = event;
 
-                        // TODO: handle new KeyEvent shit
+                        if let winit::keyboard::PhysicalKey::Code(keycode) = physical_key {
+                            let event = KeyboardEvent::new(state, keycode);
 
-                        //if let Some(keycode) = logical_key {
-                        //    let event = KeyboardEvent::new(state, keycode);
-
-                        //    self.systems.fire(&mut self.world, self.state, event);
-                        //}
+                            self.systems.fire(&mut self.world, self.state, event);
+                        };
                     }
 
                     WindowEvent::MouseInput { state, button, .. } => {
