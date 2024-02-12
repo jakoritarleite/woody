@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use vulkano::buffer::allocator::SubbufferAllocator;
-use vulkano::buffer::allocator::SubbufferAllocatorCreateInfo;
 use vulkano::buffer::Buffer as vkBuffer;
 use vulkano::buffer::BufferContents;
 use vulkano::buffer::BufferCreateInfo;
@@ -23,14 +21,7 @@ use crate::graphics::GraphicsError;
 
 use super::command_buffer::CommandBuffer;
 
-pub struct Buffer<T: BufferContents + Clone> {
-    handle: Subbuffer<[T]>,
-    allocator: Arc<StandardMemoryAllocator>,
-    usage: BufferUsage,
-    memory_type_filter: MemoryTypeFilter,
-    size: u64,
-    current_size: u64,
-}
+pub struct Buffer<T: BufferContents + Clone>(Subbuffer<[T]>);
 
 impl<T> Buffer<T>
 where
@@ -45,14 +36,7 @@ where
         let buffer =
             Self::new_buffer_unitialized(allocator.clone(), usage, memory_type_filter, size)?;
 
-        Ok(Self {
-            handle: buffer,
-            allocator,
-            usage,
-            memory_type_filter,
-            size,
-            current_size: 0,
-        })
+        Ok(Self(buffer))
     }
 
     pub fn new_initialized(
@@ -64,24 +48,7 @@ where
         let buffer =
             Self::new_buffer_initialized(allocator.clone(), usage, memory_type_filter, data)?;
 
-        let size = std::mem::size_of_val(data) as u64;
-
-        Ok(Self {
-            handle: buffer,
-            allocator,
-            usage,
-            memory_type_filter,
-            size,
-            current_size: size,
-        })
-    }
-
-    pub fn handle(&self) -> &Subbuffer<[T]> {
-        &self.handle
-    }
-
-    pub fn current_size(&self) -> u64 {
-        self.current_size
+        Ok(Self(buffer))
     }
 
     pub fn copy_from(
@@ -103,11 +70,11 @@ where
                 regions: [BufferCopy {
                     src_offset,
                     dst_offset,
-                    size: src_buffer.handle.len(),
+                    size: src_buffer.0.len(),
                     ..Default::default()
                 }]
                 .into(),
-                ..CopyBufferInfoTyped::buffers(src_buffer.handle, self.handle.clone())
+                ..CopyBufferInfoTyped::buffers(src_buffer.0, self.0.clone())
             })?;
 
         command_buffer
@@ -163,5 +130,9 @@ where
             vkBuffer::new_unsized::<[T]>(allocator, create_info, alloc_info, size as DeviceSize)?;
 
         Ok(buffer)
+    }
+
+    pub fn handle(&self) -> &Subbuffer<[T]> {
+        &self.0
     }
 }
