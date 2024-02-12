@@ -54,11 +54,12 @@ pub enum GraphicsError {
     #[error("Device does not support any candidate depth formats")]
     NoSupportedDepthFormat,
 
-    //#[error("Could not allocate image: {0}")]
-    //ImageAllocate(#[from] vulkano::Validated<vulkano::image::ImageAllocateError>),
     #[error("Cannot perform command in a command_buffer that is in a invalid state: {0}")]
     InvalidCommandBufferUsage(&'static str),
 
     #[error("Could not allocate memory: {0}")]
     MemoryAllocator(#[from] vulkano::memory::allocator::MemoryAllocatorError),
+
+    #[error("Unsupported layout transition from {0:?} to {1:?}")]
+    LayoutTransition(vulkano::image::ImageLayout, vulkano::image::ImageLayout),
 }
