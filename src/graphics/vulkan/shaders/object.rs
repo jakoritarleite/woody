@@ -15,8 +15,6 @@ use vulkano::memory::allocator::StandardMemoryAllocator;
 use vulkano::pipeline::graphics::vertex_input::VertexInputAttributeDescription;
 use vulkano::pipeline::PipelineBindPoint;
 use vulkano::shader::ShaderStages;
-use vulkano::swapchain::SwapchainAcquireFuture;
-use vulkano::sync::GpuFuture;
 
 use crate::graphics::uniform::GlobalUniformObject;
 use crate::graphics::uniform::UniformBuffer;
@@ -30,8 +28,8 @@ use super::ShaderStage;
 const SHADER_STAGE_COUNT: usize = 2;
 
 pub struct ObjectShader {
-    stages: [ShaderStage; SHADER_STAGE_COUNT],
-    global_descriptor_set_layout: Arc<DescriptorSetLayout>,
+    _stages: [ShaderStage; SHADER_STAGE_COUNT],
+    _global_descriptor_set_layout: Arc<DescriptorSetLayout>,
     global_descriptor_sets: Vec<Arc<DescriptorSet>>,
     global_uniform_object: GlobalUniformObject,
     global_uniform_buffers: Vec<UniformBuffer<GlobalUniformObject>>,
@@ -112,9 +110,9 @@ impl ObjectShader {
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(Self {
-            stages,
+            _stages: stages,
             pipeline,
-            global_descriptor_set_layout: global_ubo_descriptor_set_layout,
+            _global_descriptor_set_layout: global_ubo_descriptor_set_layout,
             global_descriptor_sets,
             global_uniform_object: GlobalUniformObject::default(),
             global_uniform_buffers,

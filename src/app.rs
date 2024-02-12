@@ -1,4 +1,3 @@
-use std::fmt;
 use std::time::Duration;
 use std::time::Instant;
 
@@ -157,7 +156,7 @@ impl App {
                         self.systems.fire(&mut self.world, self.state, event);
                     }
 
-                    DeviceEvent::MouseWheel { delta } => todo!(),
+                    DeviceEvent::MouseWheel { delta: _ } => todo!(),
 
                     _ => {}
                 },

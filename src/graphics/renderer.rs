@@ -3,7 +3,6 @@ use std::sync::Arc;
 use glam::vec3;
 use glam::Mat4;
 use glam::Quat;
-use glam::Vec3;
 use log::error;
 use thiserror::Error;
 use winit::event_loop::EventLoop;

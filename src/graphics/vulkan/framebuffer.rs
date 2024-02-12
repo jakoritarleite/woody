@@ -47,8 +47,6 @@ pub fn generate_framebuffers(
         swapchain.image_height() as u32,
     ];
 
-    let depth = swapchain.depth_attachment.view.clone();
-
     let mut framebuffers = Vec::with_capacity(swapchain.image_views.len());
     for image_view in swapchain.image_views.iter() {
         let framebuffer = Framebuffer::new(

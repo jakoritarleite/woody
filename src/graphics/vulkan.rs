@@ -8,11 +8,8 @@ use log::error;
 use log::info;
 use log::trace;
 use log::warn;
-use raw_window_handle::HasDisplayHandle;
 use smallvec::smallvec;
-use vulkano::buffer::BufferCreateInfo;
 use vulkano::buffer::BufferUsage;
-use vulkano::buffer::IndexBuffer;
 use vulkano::command_buffer::allocator::StandardCommandBufferAllocator;
 use vulkano::command_buffer::CommandBufferUsage;
 use vulkano::descriptor_set::allocator::StandardDescriptorSetAllocator;
@@ -34,16 +31,13 @@ use vulkano::instance::InstanceCreateInfo;
 use vulkano::instance::InstanceExtensions;
 use vulkano::memory::allocator::MemoryTypeFilter;
 use vulkano::memory::allocator::StandardMemoryAllocator;
-use vulkano::pipeline::graphics::vertex_input::VertexBuffersCollection;
 use vulkano::pipeline::graphics::viewport::Viewport;
-use vulkano::pipeline::DynamicState;
 use vulkano::swapchain::acquire_next_image;
 use vulkano::swapchain::Surface;
 use vulkano::swapchain::SwapchainAcquireFuture;
 use vulkano::swapchain::SwapchainPresentInfo;
 use vulkano::sync;
 use vulkano::sync::GpuFuture;
-use vulkano::sync::Sharing;
 use vulkano::Validated;
 use vulkano::VulkanError;
 use vulkano::VulkanLibrary;
@@ -72,6 +66,7 @@ mod shaders;
 mod swapchain;
 
 /// Vulkan graphics context.
+#[allow(dead_code)]
 pub struct VulkanContext {
     /// Reference to winit Window.
     window: Arc<Window>,

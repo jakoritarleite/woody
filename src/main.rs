@@ -47,7 +47,7 @@ fn setup(world: &mut World, _: GameState, _: CreateEvent) {
     world.spawn((Position(0.0, 0.0, -30.0), Velocity(5, 0)));
 }
 
-fn positions(world: &mut World, state: GameState, _: UpdateEvent) {
+fn _positions(world: &mut World, state: GameState, _: UpdateEvent) {
     let mut query = world.query::<(&mut Position, &Velocity)>();
 
     query.par_iter().for_each(|(mut position, velocity)| {
@@ -96,7 +96,7 @@ fn handle_camera_movement(world: &mut World, state: GameState, event: MouseMotio
     });
 }
 
-fn handle_shot(_world: &mut World, _: GameState, event: MouseEvent) {
+fn _handle_shot(_world: &mut World, _: GameState, event: MouseEvent) {
     println!("Just pressed mouse button: {:?}", event);
 
     match event.state {

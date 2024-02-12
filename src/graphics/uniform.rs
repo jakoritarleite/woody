@@ -3,7 +3,6 @@ use std::sync::Arc;
 use bytemuck::Pod;
 use bytemuck::Zeroable;
 use glam::Mat4;
-use log::trace;
 use vulkano::buffer::Buffer;
 use vulkano::buffer::BufferContents;
 use vulkano::buffer::BufferCreateInfo;
@@ -12,7 +11,6 @@ use vulkano::buffer::Subbuffer;
 use vulkano::memory::allocator::AllocationCreateInfo;
 use vulkano::memory::allocator::MemoryTypeFilter;
 use vulkano::memory::allocator::StandardMemoryAllocator;
-use vulkano::sync::Sharing;
 
 use super::GraphicsError;
 

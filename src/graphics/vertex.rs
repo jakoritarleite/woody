@@ -2,9 +2,7 @@ use std::ops::Mul;
 
 use bytemuck::Pod;
 use bytemuck::Zeroable;
-use glam::vec3;
 use glam::Vec3;
-use glam::Vec3Swizzles;
 use vulkano::format::Format;
 use vulkano::pipeline::graphics::vertex_input::Vertex as VulkanoVertex;
 use vulkano::pipeline::graphics::vertex_input::VertexInputAttributeDescription;
