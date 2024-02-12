@@ -5,13 +5,10 @@ use log::info;
 use vulkano::device::Device;
 use vulkano::format::Format;
 use vulkano::format::FormatFeatures;
-use vulkano::image::sampler::ComponentMapping;
-use vulkano::image::sampler::ComponentSwizzle;
 use vulkano::image::view::ImageView as vkImageView;
 use vulkano::image::view::ImageViewCreateInfo;
 use vulkano::image::view::ImageViewType;
 use vulkano::image::Image as vkImage;
-use vulkano::image::ImageAspect;
 use vulkano::image::ImageAspects;
 use vulkano::image::ImageSubresourceRange;
 use vulkano::image::ImageTiling;
@@ -26,6 +23,7 @@ use vulkano::swapchain::SwapchainCreateInfo;
 use vulkano::sync::Sharing;
 
 use crate::graphics::vulkan::image::Image;
+use crate::graphics::vulkan::image::ImageCreateInfo;
 use crate::graphics::GraphicsError;
 
 const CANDIDATE_FORMATS: [Format; 3] = [
@@ -97,14 +95,15 @@ impl SwapchainContext {
 
         let depth_attachment = Image::new(
             memory_allocator.clone(),
-            ImageType::Dim2d,
-            depth_format,
-            ImageTiling::Optimal,
-            ImageUsage::DEPTH_STENCIL_ATTACHMENT,
-            Some(ImageUsage::DEPTH_STENCIL_ATTACHMENT),
-            ImageAspects::DEPTH | ImageAspects::STENCIL,
-            width,
-            height,
+            ImageCreateInfo {
+                image_type: ImageType::Dim2d,
+                format: depth_format,
+                tiling: ImageTiling::Optimal,
+                usage: ImageUsage::DEPTH_STENCIL_ATTACHMENT,
+                stencil_usage: Some(ImageUsage::DEPTH_STENCIL_ATTACHMENT),
+                view_aspects: ImageAspects::DEPTH | ImageAspects::STENCIL,
+                dimensions: [width, height],
+            },
         )?;
 
         Ok(Self {
@@ -221,14 +220,15 @@ impl SwapchainContext {
         debug!("Recreating depth attachment");
         let depth_attachment = Image::new(
             self.allocator.clone(),
-            ImageType::Dim2d,
-            self.depth_format,
-            ImageTiling::Optimal,
-            ImageUsage::DEPTH_STENCIL_ATTACHMENT,
-            Some(ImageUsage::DEPTH_STENCIL_ATTACHMENT),
-            ImageAspects::DEPTH | ImageAspects::STENCIL,
-            width,
-            height,
+            ImageCreateInfo {
+                image_type: ImageType::Dim2d,
+                format: self.depth_format,
+                tiling: ImageTiling::Optimal,
+                usage: ImageUsage::DEPTH_STENCIL_ATTACHMENT,
+                stencil_usage: Some(ImageUsage::DEPTH_STENCIL_ATTACHMENT),
+                view_aspects: ImageAspects::DEPTH | ImageAspects::STENCIL,
+                dimensions: [width, height],
+            },
         )?;
 
         self.handle = swapchain;

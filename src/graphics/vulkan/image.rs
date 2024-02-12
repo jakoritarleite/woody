@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use log::debug;
 use log::info;
 use vulkano::format::Format;
 use vulkano::image::view::ImageView as vkImageView;
@@ -8,7 +7,7 @@ use vulkano::image::view::ImageViewCreateInfo;
 use vulkano::image::view::ImageViewType;
 use vulkano::image::Image as vkImage;
 use vulkano::image::ImageAspects;
-use vulkano::image::ImageCreateInfo;
+use vulkano::image::ImageCreateInfo as vkImageCreateInfo;
 use vulkano::image::ImageLayout;
 use vulkano::image::ImageSubresourceRange;
 use vulkano::image::ImageTiling;
@@ -23,24 +22,33 @@ use crate::graphics::GraphicsError;
 /// Abstraction of the Vulkan Image and Image view.
 #[derive(Debug)]
 pub(super) struct Image {
-    pub handle: Arc<vkImage>,
+    pub _handle: Arc<vkImage>,
     pub view: Arc<vkImageView>,
-    width: u32,
-    height: u32,
+}
+
+pub(super) struct ImageCreateInfo {
+    pub image_type: ImageType,
+    pub format: Format,
+    pub tiling: ImageTiling,
+    pub usage: ImageUsage,
+    pub stencil_usage: Option<ImageUsage>,
+    pub view_aspects: ImageAspects,
+    pub dimensions: [u32; 2],
 }
 
 impl Image {
     /// Creates a new instance of [`Image`].
     pub(super) fn new(
         memory_allocator: Arc<StandardMemoryAllocator>,
-        image_type: ImageType,
-        format: Format,
-        tiling: ImageTiling,
-        usage: ImageUsage,
-        stencil_usage: Option<ImageUsage>,
-        view_aspects: ImageAspects,
-        width: u32,
-        height: u32,
+        ImageCreateInfo {
+            image_type,
+            format,
+            tiling,
+            usage,
+            stencil_usage,
+            view_aspects,
+            dimensions,
+        }: ImageCreateInfo,
     ) -> Result<Self, GraphicsError> {
         let image = Self::create_image(
             memory_allocator,
@@ -49,17 +57,14 @@ impl Image {
             tiling,
             usage,
             stencil_usage,
-            width,
-            height,
+            dimensions,
         )?;
         // TODO: make creating the view configurable ??
         let view = Self::create_image_view(image.clone(), format, view_aspects, usage)?;
 
         Ok(Self {
-            handle: image,
+            _handle: image,
             view,
-            width,
-            height,
         })
     }
 
@@ -71,8 +76,7 @@ impl Image {
         tiling: ImageTiling,
         usage: ImageUsage,
         stencil_usage: Option<ImageUsage>,
-        width: u32,
-        height: u32,
+        dimensions: [u32; 2],
     ) -> Result<Arc<vkImage>, GraphicsError> {
         // TODO:
         // - extent:        support configurable depth.
@@ -80,10 +84,10 @@ impl Image {
         // - mip_levels:    support configurable mip mapping.
         // - samples:       support configurable sample count.
         // - sharing:       support configurable sharing mode.
-        let info = ImageCreateInfo {
+        let info = vkImageCreateInfo {
             image_type,
             format,
-            extent: [width, height, 1],
+            extent: [dimensions[0], dimensions[1], 1],
             array_layers: 1,
             mip_levels: 4,
             tiling,
