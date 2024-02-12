@@ -149,6 +149,7 @@ impl Pipeline {
                 multisample_state: Some(multisample_state),
                 depth_stencil_state: Some(depth_stencil_state),
                 color_blend_state: Some(color_blend_state),
+                dynamic_state: [DynamicState::Viewport].into_iter().collect(),
                 subpass: Subpass::from(render_pass.handle(), 0).map(|subpass| subpass.into()),
                 ..GraphicsPipelineCreateInfo::layout(pipeline_layout.clone())
             },
