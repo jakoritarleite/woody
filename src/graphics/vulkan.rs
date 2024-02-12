@@ -52,7 +52,6 @@ use winit::window::Window;
 
 use crate::graphics::vertex::Vertex;
 use crate::graphics::vulkan::buffer::Buffer;
-use crate::graphics::vulkan::buffer::BufferSub;
 use crate::graphics::vulkan::framebuffer::generate_framebuffers;
 use crate::graphics::vulkan::renderpass::RenderPass;
 
