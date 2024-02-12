@@ -1,16 +1,13 @@
 use std::sync::Arc;
 
-use log::debug;
 use log::info;
 use vulkano::command_buffer::RenderPassBeginInfo;
 use vulkano::command_buffer::SubpassBeginInfo;
 use vulkano::device::Device;
 use vulkano::format::ClearValue;
-use vulkano::format::Format;
 use vulkano::image::ImageLayout;
 use vulkano::image::SampleCount;
 use vulkano::render_pass::AttachmentDescription;
-use vulkano::render_pass::AttachmentDescriptionFlags;
 use vulkano::render_pass::AttachmentLoadOp;
 use vulkano::render_pass::AttachmentReference;
 use vulkano::render_pass::AttachmentStoreOp;
@@ -18,11 +15,8 @@ use vulkano::render_pass::RenderPass as vkRenderPass;
 use vulkano::render_pass::RenderPassCreateInfo;
 use vulkano::render_pass::SubpassDependency;
 use vulkano::render_pass::SubpassDescription;
-use vulkano::render_pass::SubpassDescriptionFlags;
-use vulkano::shader::spirv::ImageFormat;
 use vulkano::sync::AccessFlags;
 use vulkano::sync::DependencyFlags;
-use vulkano::sync::PipelineStage;
 use vulkano::sync::PipelineStages;
 
 use crate::graphics::GraphicsError;
@@ -32,18 +26,8 @@ use super::command_buffer::CommandBufferState;
 use super::framebuffer::Framebuffer;
 use super::swapchain::SwapchainContext;
 
-pub enum RenderPassState {
-    Ready,
-    Recording,
-    InRenderPass,
-    RecordingEnded,
-    Submitted,
-    NotAllocated,
-}
-
 pub struct RenderPass {
     handle: Arc<vkRenderPass>,
-    state: RenderPassState,
     // x, y, w, h
     render_area: [u32; 4],
     // r, g, b, a
@@ -139,7 +123,6 @@ impl RenderPass {
 
         Ok(Self {
             handle: render_pass,
-            state: RenderPassState::Ready,
             render_area,
             clear_colors,
             depth,

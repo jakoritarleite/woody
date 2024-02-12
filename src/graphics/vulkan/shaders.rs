@@ -10,7 +10,7 @@ use crate::graphics::GraphicsError;
 pub mod object;
 
 pub struct ShaderStage {
-    handle: Arc<ShaderModule>,
+    _handle: Arc<ShaderModule>,
     pub(super) pipeline_stage_create_info: PipelineShaderStageCreateInfo,
 }
 
@@ -26,7 +26,7 @@ impl ShaderStage {
         );
 
         Ok(Self {
-            handle: module,
+            _handle: module,
             pipeline_stage_create_info,
         })
     }
