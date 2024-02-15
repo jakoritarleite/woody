@@ -13,7 +13,10 @@ use crate::camera::Camera;
 use crate::ecs::world::World;
 use crate::event::CreateEvent;
 use crate::event::UpdateEvent;
+#[cfg(not(feature = "graphics2"))]
 use crate::graphics::renderer::Renderer;
+#[cfg(feature = "graphics2")]
+use crate::graphics2::renderer::Renderer;
 use crate::input::keyboard::KeyboardEvent;
 use crate::input::CursorEvent;
 use crate::input::MouseEvent;
@@ -29,6 +32,9 @@ pub struct GameState {
 pub struct App {
     pub world: World,
     pub systems: Systems,
+    #[cfg(not(feature = "graphics2"))]
+    renderer: Renderer,
+    #[cfg(feature = "graphics2")]
     renderer: Renderer,
     state: GameState,
     clock: Clock,
@@ -46,6 +52,9 @@ impl App {
 
         let event_loop = EventLoop::new()?;
         let systems = Systems::default();
+        #[cfg(not(feature = "graphics2"))]
+        let renderer = Renderer::new(&event_loop).expect("creating renderer frontend");
+        #[cfg(feature = "graphics2")]
         let renderer = Renderer::new(&event_loop).expect("creating renderer frontend");
         let state = GameState {
             delta_time: 0.0,
@@ -56,6 +65,9 @@ impl App {
             Self {
                 world,
                 systems,
+                #[cfg(not(feature = "graphics2"))]
+                renderer,
+                #[cfg(feature = "graphics2")]
                 renderer,
                 clock: Clock::new(),
                 state,
@@ -78,7 +90,10 @@ impl App {
             window_target.set_control_flow(ControlFlow::Poll);
 
             match event {
-                Event::AboutToWait => self.renderer.window.request_redraw(),
+                Event::AboutToWait => {
+                    #[cfg(not(feature = "graphics2"))]
+                    self.renderer.window.request_redraw();
+                }
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::RedrawRequested if !minimized => {
                         self.clock.update();
@@ -90,9 +105,11 @@ impl App {
                         self.systems.fire(&mut self.world, self.state, UpdateEvent);
 
                         if let Some(cam) = self.world.query::<&Camera>().iter().next() {
+                            #[cfg(not(feature = "graphics2"))]
                             self.renderer.set_view(cam.view())
                         };
 
+                        #[cfg(not(feature = "graphics2"))]
                         self.renderer.draw_frame().unwrap();
 
                         let _frame_elapsed_time = frame_start_time.elapsed().as_secs_f64();
@@ -104,11 +121,14 @@ impl App {
                         window_target.exit();
                     }
 
-                    WindowEvent::Resized(size) => {
+                    WindowEvent::Resized(size) =>
+                    {
+                        #[allow(clippy::needless_bool_assign)]
                         if size.width == 0 || size.height == 0 {
                             minimized = true;
                         } else {
                             minimized = false;
+                            #[cfg(not(feature = "graphics2"))]
                             self.renderer.resize().unwrap();
                         }
                     }
