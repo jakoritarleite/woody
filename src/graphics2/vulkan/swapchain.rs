@@ -23,6 +23,7 @@ pub struct SwapchainContext {
     pub image_color_space: vk::ColorSpaceKHR,
     pub depth_format: vk::Format,
     pub depth_attachment: Image,
+    pub extent: [u32; 2],
 }
 
 impl SwapchainContext {
@@ -146,6 +147,7 @@ impl SwapchainContext {
             image_color_space: color_space,
             depth_format,
             depth_attachment,
+            extent: [width, height],
         })
     }
 }

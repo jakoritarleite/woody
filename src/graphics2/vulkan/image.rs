@@ -7,12 +7,12 @@ use super::Error;
 /// Abstraction for the Vulkan Image and ImageView.
 #[derive(Debug)]
 pub struct Image {
-    image: vk::Image,
-    view: vk::ImageView,
-    format: vk::Format,
-    tiling: vk::ImageTiling,
-    usage: vk::ImageUsageFlags,
-    extent: Extent3D,
+    pub image: vk::Image,
+    pub view: vk::ImageView,
+    pub format: vk::Format,
+    pub tiling: vk::ImageTiling,
+    pub usage: vk::ImageUsageFlags,
+    pub extent: Extent3D,
 }
 
 impl Image {

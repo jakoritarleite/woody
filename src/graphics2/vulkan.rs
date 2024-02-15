@@ -13,9 +13,13 @@ use thiserror::Error;
 use winit::event_loop::EventLoop;
 use winit::window::Window;
 
+use crate::graphics2::vulkan::framebuffer::generate_framebuffers;
+
+use self::framebuffer::Framebuffer;
 use self::renderpass::RenderPass;
 use self::swapchain::SwapchainContext;
 
+mod framebuffer;
 mod image;
 mod renderpass;
 mod swapchain;
@@ -46,6 +50,9 @@ pub(crate) struct VulkanContext {
 
     /// Vulkan main renderpass.
     renderpass: RenderPass,
+
+    /// Vulkan swapchain framebuffers.
+    framebuffers: Vec<Framebuffer>,
 }
 
 impl VulkanContext {
@@ -208,6 +215,8 @@ impl VulkanContext {
             0,
         )?;
 
+        let framebuffers = generate_framebuffers(&device, &renderpass, &swapchain)?;
+
         Ok(Self {
             window,
             instance,
@@ -218,6 +227,7 @@ impl VulkanContext {
             queue,
             swapchain,
             renderpass,
+            framebuffers,
         })
     }
 }
