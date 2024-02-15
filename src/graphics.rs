@@ -1,6 +1,5 @@
 use thiserror::Error;
 
-pub mod camera;
 pub mod renderer;
 pub mod uniform;
 mod vertex;

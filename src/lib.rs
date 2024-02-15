@@ -1,4 +1,5 @@
 pub mod app;
+pub mod camera;
 pub mod ecs;
 pub mod event;
 pub mod graphics;

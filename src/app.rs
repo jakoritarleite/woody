@@ -9,10 +9,10 @@ use winit::event::WindowEvent;
 use winit::event_loop::ControlFlow;
 use winit::event_loop::EventLoop;
 
+use crate::camera::Camera;
 use crate::ecs::world::World;
 use crate::event::CreateEvent;
 use crate::event::UpdateEvent;
-use crate::graphics::camera::Camera;
 use crate::graphics::renderer::Renderer;
 use crate::input::keyboard::KeyboardEvent;
 use crate::input::CursorEvent;
