@@ -13,9 +13,11 @@ use thiserror::Error;
 use winit::event_loop::EventLoop;
 use winit::window::Window;
 
+use self::renderpass::RenderPass;
 use self::swapchain::SwapchainContext;
 
 mod image;
+mod renderpass;
 mod swapchain;
 
 /// Vulkan graphics context.
@@ -41,6 +43,9 @@ pub(crate) struct VulkanContext {
 
     /// Swapchain context.
     swapchain: SwapchainContext,
+
+    /// Vulkan main renderpass.
+    renderpass: RenderPass,
 }
 
 impl VulkanContext {
@@ -194,6 +199,15 @@ impl VulkanContext {
             window.inner_size().height,
         )?;
 
+        let renderpass = RenderPass::new(
+            &device,
+            &swapchain,
+            [0, 0, window.inner_size().width, window.inner_size().height],
+            [0.0, 0.0, 0.2, 1.0],
+            1.0,
+            0,
+        )?;
+
         Ok(Self {
             window,
             instance,
@@ -203,6 +217,7 @@ impl VulkanContext {
             device,
             queue,
             swapchain,
+            renderpass,
         })
     }
 }
