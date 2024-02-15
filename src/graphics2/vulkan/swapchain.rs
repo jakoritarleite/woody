@@ -15,14 +15,14 @@ const CANDIDATE_FORMATS: [vk::Format; 3] = [
 
 /// Abstraction of the Vulkan Swapchain.
 pub struct SwapchainContext {
-    khr: vk::SwapchainKHR,
-    handle: Swapchain,
-    images: Vec<vk::Image>,
-    image_views: Vec<vk::ImageView>,
-    image_format: vk::Format,
-    image_color_space: vk::ColorSpaceKHR,
-    depth_format: vk::Format,
-    depth_attachment: Image,
+    pub khr: vk::SwapchainKHR,
+    pub handle: Swapchain,
+    pub images: Vec<vk::Image>,
+    pub image_views: Vec<vk::ImageView>,
+    pub image_format: vk::Format,
+    pub image_color_space: vk::ColorSpaceKHR,
+    pub depth_format: vk::Format,
+    pub depth_attachment: Image,
 }
 
 impl SwapchainContext {
