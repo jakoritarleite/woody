@@ -15,6 +15,7 @@ use winit::window::Window;
 
 use self::swapchain::SwapchainContext;
 
+mod image;
 mod swapchain;
 
 /// Vulkan graphics context.

@@ -4,6 +4,7 @@ use ash::vk;
 use ash::Device;
 use ash::Instance;
 
+use super::image::Image;
 use super::Error;
 
 const CANDIDATE_FORMATS: [vk::Format; 3] = [
@@ -21,8 +22,7 @@ pub struct SwapchainContext {
     image_format: vk::Format,
     image_color_space: vk::ColorSpaceKHR,
     depth_format: vk::Format,
-    // TODO: create depth attachment
-    //depth_attachment: Image
+    depth_attachment: Image,
 }
 
 impl SwapchainContext {
@@ -124,6 +124,19 @@ impl SwapchainContext {
 
         log::info!("Found supported depth format ({:?})", depth_format);
 
+        let depth_attachment = Image::new(
+            device,
+            vk::ImageType::TYPE_2D,
+            depth_format,
+            vk::ImageTiling::OPTIMAL,
+            vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT,
+            vk::Extent3D {
+                width,
+                height,
+                depth: 1,
+            },
+        )?;
+
         Ok(Self {
             khr: swapchain,
             handle: loader,
@@ -132,6 +145,7 @@ impl SwapchainContext {
             image_format: format,
             image_color_space: color_space,
             depth_format,
+            depth_attachment,
         })
     }
 }
