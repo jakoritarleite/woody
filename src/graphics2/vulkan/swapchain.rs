@@ -5,6 +5,7 @@ use ash::Device;
 use ash::Instance;
 
 use super::image::Image;
+use super::image::ImageCreateInfo;
 use super::Error;
 
 const CANDIDATE_FORMATS: [vk::Format; 3] = [
@@ -30,7 +31,7 @@ impl SwapchainContext {
     /// Creates a new instance of [`SwapchainContext`].
     pub fn new(
         instance: &Instance,
-        physical_device: &vk::PhysicalDevice,
+        physical_device: vk::PhysicalDevice,
         device: &Device,
         surface_khr: vk::SurfaceKHR,
         surface: &Surface,
@@ -38,7 +39,7 @@ impl SwapchainContext {
         height: u32,
     ) -> Result<Self, Error> {
         let surface_capabilities = unsafe {
-            surface.get_physical_device_surface_capabilities(*physical_device, surface_khr)?
+            surface.get_physical_device_surface_capabilities(physical_device, surface_khr)?
         };
 
         // Chosing the internal format that the images will have.
@@ -46,13 +47,13 @@ impl SwapchainContext {
             format,
             color_space,
         } = unsafe {
-            surface.get_physical_device_surface_formats(*physical_device, surface_khr)?[0]
+            surface.get_physical_device_surface_formats(physical_device, surface_khr)?[0]
         };
 
         // Check if Surface supports using Mailbox, if not use Fifo.
         let present_mode = unsafe {
             surface
-                .get_physical_device_surface_present_modes(*physical_device, surface_khr)?
+                .get_physical_device_surface_present_modes(physical_device, surface_khr)?
                 .into_iter()
                 .find(|mode| *mode == vk::PresentModeKHR::MAILBOX)
                 .unwrap_or(vk::PresentModeKHR::FIFO)
@@ -66,7 +67,10 @@ impl SwapchainContext {
             .image_usage(vk::ImageUsageFlags::COLOR_ATTACHMENT)
             .image_sharing_mode(vk::SharingMode::EXCLUSIVE)
             .composite_alpha(vk::CompositeAlphaFlagsKHR::OPAQUE)
-            .present_mode(present_mode);
+            .present_mode(present_mode)
+            .surface(surface_khr)
+            .pre_transform(surface_capabilities.current_transform)
+            .image_array_layers(surface_capabilities.max_image_array_layers);
 
         let loader = Swapchain::new(instance, device);
         let swapchain = unsafe { loader.create_swapchain(&swapchain_create_info, None)? };
@@ -76,9 +80,7 @@ impl SwapchainContext {
             .iter()
             .map(|image| {
                 let subresource_range = vk::ImageSubresourceRange {
-                    aspect_mask: vk::ImageAspectFlags::COLOR
-                        | vk::ImageAspectFlags::DEPTH
-                        | vk::ImageAspectFlags::STENCIL,
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
                     base_mip_level: 0,
                     level_count: 1,
                     base_array_layer: 0,
@@ -101,7 +103,7 @@ impl SwapchainContext {
 
         for format in CANDIDATE_FORMATS.into_iter() {
             let format_properties =
-                unsafe { instance.get_physical_device_format_properties(*physical_device, format) };
+                unsafe { instance.get_physical_device_format_properties(physical_device, format) };
 
             let linear_tiling_contains_depth_stencil_attachment = format_properties
                 .linear_tiling_features
@@ -126,15 +128,20 @@ impl SwapchainContext {
         log::info!("Found supported depth format ({:?})", depth_format);
 
         let depth_attachment = Image::new(
+            instance,
+            physical_device,
             device,
-            vk::ImageType::TYPE_2D,
-            depth_format,
-            vk::ImageTiling::OPTIMAL,
-            vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT,
-            vk::Extent3D {
-                width,
-                height,
-                depth: 1,
+            ImageCreateInfo {
+                image_type: vk::ImageType::TYPE_2D,
+                format: depth_format,
+                tiling: vk::ImageTiling::OPTIMAL,
+                usage: vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT,
+                aspect_mask: vk::ImageAspectFlags::DEPTH | vk::ImageAspectFlags::STENCIL,
+                extent: vk::Extent3D {
+                    width,
+                    height,
+                    depth: 1,
+                },
             },
         )?;
 

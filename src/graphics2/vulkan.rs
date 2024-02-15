@@ -198,7 +198,7 @@ impl VulkanContext {
 
         let swapchain = SwapchainContext::new(
             &instance,
-            &physical_device,
+            physical_device,
             &device,
             surface,
             &surface_loader,
@@ -243,6 +243,9 @@ See https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkResu
 
     #[error("Device does not support any candidate depth formats")]
     NoSupportedDepthFormat,
+
+    #[error("Could not find a suitable memory index")]
+    NoSuitableMemoryIndex,
 }
 
 unsafe extern "system" fn vk_debug_callback(
