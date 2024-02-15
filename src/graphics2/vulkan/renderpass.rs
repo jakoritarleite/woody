@@ -32,6 +32,7 @@ impl RenderPass {
             .load_op(vk::AttachmentLoadOp::CLEAR)
             .store_op(vk::AttachmentStoreOp::STORE)
             .initial_layout(vk::ImageLayout::UNDEFINED)
+            .final_layout(vk::ImageLayout::PRESENT_SRC_KHR)
             .stencil_load_op(vk::AttachmentLoadOp::DONT_CARE)
             .stencil_store_op(vk::AttachmentStoreOp::DONT_CARE);
         let color_attachment_reference = vk::AttachmentReference::builder()
@@ -48,11 +49,14 @@ impl RenderPass {
             .load_op(vk::AttachmentLoadOp::CLEAR)
             .store_op(vk::AttachmentStoreOp::STORE)
             .initial_layout(vk::ImageLayout::UNDEFINED)
+            .final_layout(vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
             .stencil_load_op(vk::AttachmentLoadOp::CLEAR)
             .stencil_store_op(vk::AttachmentStoreOp::DONT_CARE);
         let depth_attachment_reference = vk::AttachmentReference::builder()
             .attachment(1)
             .layout(vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+
+        let attachments = [color_attachment.build(), depth_attachment.build()];
 
         log::info!("Creating subpass description");
         let subpass_description = vk::SubpassDescription::builder()
@@ -71,7 +75,7 @@ impl RenderPass {
             .dependency_flags(vk::DependencyFlags::empty());
 
         let renderpass_create_info = vk::RenderPassCreateInfo::builder()
-            .attachments(&[color_attachment.build(), depth_attachment.build()])
+            .attachments(&attachments)
             .subpasses(std::slice::from_ref(&subpass_description))
             .dependencies(std::slice::from_ref(&subpass_dependency));
 
