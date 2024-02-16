@@ -14,6 +14,8 @@ use winit::event_loop::EventLoop;
 use winit::window::Window;
 
 use crate::graphics2::vulkan::framebuffer::generate_framebuffers;
+use crate::graphics2::RenderArea;
+use crate::graphics2::Rgba;
 
 use self::framebuffer::Framebuffer;
 use self::renderpass::RenderPass;
@@ -209,8 +211,8 @@ impl VulkanContext {
         let renderpass = RenderPass::new(
             &device,
             &swapchain,
-            [0, 0, window.inner_size().width, window.inner_size().height],
-            [0.0, 0.0, 0.2, 1.0],
+            RenderArea::from(window.inner_size()),
+            Rgba(0.0, 0.0, 0.2, 1.0),
             1.0,
             0,
         )?;

@@ -1,16 +1,17 @@
 use ash::vk;
 use ash::Device;
 
+use crate::graphics2::RenderArea;
+use crate::graphics2::Rgba;
+
 use super::swapchain::SwapchainContext;
 use super::Error;
 
 /// Vulkan abstraction of RenderPass.
 pub struct RenderPass {
     pub handle: vk::RenderPass,
-    /// x, y, w, h
-    pub render_area: [u32; 4],
-    /// r, g, b, a
-    pub clear_colors: [f32; 4],
+    pub render_area: RenderArea,
+    pub clear_colors: Rgba,
     pub depth: f32,
     pub stencil: u32,
 }
@@ -20,8 +21,8 @@ impl RenderPass {
     pub fn new(
         device: &Device,
         swapchain: &SwapchainContext,
-        render_area: [u32; 4],
-        clear_colors: [f32; 4],
+        render_area: RenderArea,
+        clear_colors: Rgba,
         depth: f32,
         stencil: u32,
     ) -> Result<Self, Error> {
