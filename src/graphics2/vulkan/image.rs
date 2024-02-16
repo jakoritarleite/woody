@@ -15,6 +15,7 @@ pub struct Image {
     pub usage: vk::ImageUsageFlags,
     pub aspect_mask: vk::ImageAspectFlags,
     pub extent: Extent3D,
+    pub(super) memory: vk::DeviceMemory,
 }
 
 pub struct ImageCreateInfo {
@@ -103,6 +104,7 @@ impl Image {
             usage,
             aspect_mask,
             extent,
+            memory: image_memory,
         })
     }
 }

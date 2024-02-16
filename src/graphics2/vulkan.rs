@@ -36,10 +36,13 @@ pub(crate) struct VulkanContext {
 
     #[cfg(debug_assertions)]
     /// Vulkan debug utils messenger.
+    _debug_loader: DebugUtils,
+    #[cfg(debug_assertions)]
     _debug_messenger: vk::DebugUtilsMessengerEXT,
 
     /// Vulkan swapchain screen Surface.
     surface: Surface,
+    surface_khr: vk::SurfaceKHR,
 
     /// Vulkan logical device.
     device: ash::Device,
@@ -223,8 +226,11 @@ impl VulkanContext {
             window,
             instance,
             #[cfg(debug_assertions)]
+            _debug_loader: debug_utils_loader,
+            #[cfg(debug_assertions)]
             _debug_messenger: debug_callback,
             surface: surface_loader,
+            surface_khr: surface,
             device,
             queue,
             swapchain,
@@ -282,4 +288,52 @@ fn debug_str_raw_pointers(ptrs: &[*const i8]) -> Vec<&CStr> {
     ptrs.iter()
         .map(|ptr| unsafe { CStr::from_ptr(*ptr) })
         .collect()
+}
+
+impl Drop for VulkanContext {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = self.device.device_wait_idle();
+        }
+
+        for framebuffer in self.framebuffers.iter() {
+            unsafe {
+                self.device.destroy_framebuffer(framebuffer.handle, None);
+            };
+        }
+
+        unsafe {
+            self.device
+                .destroy_render_pass(self.renderpass.handle, None);
+
+            self.device
+                .free_memory(self.swapchain.depth_attachment.memory, None);
+
+            self.device
+                .destroy_image_view(self.swapchain.depth_attachment.view, None);
+
+            self.device
+                .destroy_image(self.swapchain.depth_attachment.image, None);
+        }
+
+        for swapchain_image_view in self.swapchain.image_views.iter() {
+            unsafe {
+                self.device.destroy_image_view(*swapchain_image_view, None);
+            }
+        }
+
+        unsafe {
+            self.swapchain
+                .handle
+                .destroy_swapchain(self.swapchain.khr, None);
+
+            self.surface.destroy_surface(self.surface_khr, None);
+
+            #[cfg(debug_assertions)]
+            self._debug_loader
+                .destroy_debug_utils_messenger(self._debug_messenger, None);
+
+            self.device.destroy_device(None);
+        }
+    }
 }
