@@ -51,7 +51,7 @@ pub fn generate_framebuffers(
                 device,
                 renderpass,
                 swapchain.extent,
-                &[image_view.clone(), swapchain.depth_attachment.view.clone()],
+                &[*image_view, swapchain.depth_attachment.view],
             )
         })
         .collect::<Result<Vec<_>, _>>()
