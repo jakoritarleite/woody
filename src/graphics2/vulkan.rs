@@ -16,6 +16,7 @@ use winit::window::Window;
 use crate::graphics2::vulkan::command_buffer::CommandBufferLevel;
 use crate::graphics2::vulkan::command_buffer::CommandPoolCreateFlags;
 use crate::graphics2::vulkan::framebuffer::generate_framebuffers;
+use crate::graphics2::vulkan::sync::FenceCreateFlags;
 use crate::graphics2::RenderArea;
 use crate::graphics2::Rgba;
 
@@ -24,12 +25,14 @@ use self::command_buffer::CommandPool;
 use self::framebuffer::Framebuffer;
 use self::renderpass::RenderPass;
 use self::swapchain::SwapchainContext;
+use self::sync::Fence;
 
 mod command_buffer;
 mod framebuffer;
 mod image;
 mod renderpass;
 mod swapchain;
+mod sync;
 
 /// Vulkan graphics context.
 pub(crate) struct VulkanContext {
@@ -68,8 +71,18 @@ pub(crate) struct VulkanContext {
     command_pool: CommandPool,
 
     /// Vulkan graphics command buffers.
-    /// We have one command buffer for each swapchain image.
+    /// Note: there's one command buffer for each swapchain image.
     graphics_command_buffers: Vec<CommandBuffer>,
+
+    /// Represents when an image is available to be rendered to.
+    image_available_semaphores: Vec<vk::Semaphore>,
+
+    /// Represents when a queue is ready to be presented.
+    queue_complete_semaphores: Vec<vk::Semaphore>,
+
+    in_flight_fence_count: u32,
+    in_flight_fences: Vec<Fence>,
+    images_in_flight: Vec<Fence>,
 }
 
 impl VulkanContext {
@@ -246,6 +259,22 @@ impl VulkanContext {
             .map(|_| command_pool.allocate(CommandBufferLevel::Primary))
             .collect::<Result<Vec<_>, _>>()?;
 
+        let semaphore_create_info = vk::SemaphoreCreateInfo::builder();
+
+        let image_available_semaphores = (0..=swapchain.images.len())
+            .map(|_| unsafe { device.create_semaphore(&semaphore_create_info, None) })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let queue_complete_semaphores = (0..=swapchain.images.len())
+            .map(|_| unsafe { device.create_semaphore(&semaphore_create_info, None) })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let in_flight_fences = (0..=swapchain.images.len())
+            .map(|_| Fence::new(device.clone(), FenceCreateFlags::empty()))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let images_in_flight = vec![];
+
         Ok(Self {
             window,
             instance,
@@ -262,6 +291,11 @@ impl VulkanContext {
             framebuffers,
             command_pool,
             graphics_command_buffers,
+            image_available_semaphores,
+            queue_complete_semaphores,
+            in_flight_fence_count: in_flight_fences.len() as _,
+            in_flight_fences,
+            images_in_flight,
         })
     }
 }
@@ -320,6 +354,18 @@ impl Drop for VulkanContext {
     fn drop(&mut self) {
         unsafe {
             let _ = self.device.device_wait_idle();
+        }
+
+        for fence in self.in_flight_fences.iter() {
+            unsafe { self.device.destroy_fence(fence.handle, None) };
+        }
+
+        for semaphore in self.queue_complete_semaphores.iter() {
+            unsafe { self.device.destroy_semaphore(*semaphore, None) };
+        }
+
+        for semaphore in self.image_available_semaphores.iter() {
+            unsafe { self.device.destroy_semaphore(*semaphore, None) };
         }
 
         unsafe {
