@@ -13,14 +13,19 @@ use thiserror::Error;
 use winit::event_loop::EventLoop;
 use winit::window::Window;
 
+use crate::graphics2::vulkan::command_buffer::CommandBufferLevel;
+use crate::graphics2::vulkan::command_buffer::CommandPoolCreateFlags;
 use crate::graphics2::vulkan::framebuffer::generate_framebuffers;
 use crate::graphics2::RenderArea;
 use crate::graphics2::Rgba;
 
+use self::command_buffer::CommandBuffer;
+use self::command_buffer::CommandPool;
 use self::framebuffer::Framebuffer;
 use self::renderpass::RenderPass;
 use self::swapchain::SwapchainContext;
 
+mod command_buffer;
 mod framebuffer;
 mod image;
 mod renderpass;
@@ -45,7 +50,7 @@ pub(crate) struct VulkanContext {
     surface_khr: vk::SurfaceKHR,
 
     /// Vulkan logical device.
-    device: ash::Device,
+    device: Arc<ash::Device>,
 
     /// Vulkan graphics queue.
     queue: vk::Queue,
@@ -58,6 +63,13 @@ pub(crate) struct VulkanContext {
 
     /// Vulkan swapchain framebuffers.
     framebuffers: Vec<Framebuffer>,
+
+    /// Vulkan command pool.
+    command_pool: CommandPool,
+
+    /// Vulkan graphics command buffers.
+    /// We have one command buffer for each swapchain image.
+    graphics_command_buffers: Vec<CommandBuffer>,
 }
 
 impl VulkanContext {
@@ -198,6 +210,7 @@ impl VulkanContext {
             .enabled_features(&device_features);
 
         let device = unsafe { instance.create_device(physical_device, &device_create_info, None)? };
+        let device = Arc::new(device);
 
         let queue = unsafe { device.get_device_queue(queue_family_index, 0) };
 
@@ -222,6 +235,17 @@ impl VulkanContext {
 
         let framebuffers = generate_framebuffers(&device, &renderpass, &swapchain)?;
 
+        let command_pool = CommandPool::new(
+            device.clone(),
+            queue_family_index,
+            CommandPoolCreateFlags::ResetCommandBuffer,
+        )?;
+
+        // Create one commend buffer for each swapchain image.
+        let graphics_command_buffers = (0..=swapchain.images.len())
+            .map(|_| command_pool.allocate(CommandBufferLevel::Primary))
+            .collect::<Result<Vec<_>, _>>()?;
+
         Ok(Self {
             window,
             instance,
@@ -236,6 +260,8 @@ impl VulkanContext {
             swapchain,
             renderpass,
             framebuffers,
+            command_pool,
+            graphics_command_buffers,
         })
     }
 }
@@ -295,6 +321,11 @@ impl Drop for VulkanContext {
         unsafe {
             let _ = self.device.device_wait_idle();
         }
+
+        unsafe {
+            self.device
+                .destroy_command_pool(self.command_pool.handle, None)
+        };
 
         for framebuffer in self.framebuffers.iter() {
             unsafe {
