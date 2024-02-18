@@ -42,6 +42,7 @@ impl SwapchainContext {
         device: Arc<Device>,
         surface_khr: vk::SurfaceKHR,
         surface: &Surface,
+        queue_family_index: u32,
         width: u32,
         height: u32,
     ) -> Result<Self, Error> {
@@ -78,6 +79,7 @@ impl SwapchainContext {
             .surface(surface_khr)
             .pre_transform(surface_capabilities.current_transform)
             .image_array_layers(surface_capabilities.max_image_array_layers)
+            .queue_family_indices(std::slice::from_ref(&queue_family_index))
             .clipped(true);
 
         let loader = Swapchain::new(&instance, &device);

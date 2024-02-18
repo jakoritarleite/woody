@@ -251,6 +251,7 @@ impl VulkanContext {
             device.clone(),
             surface,
             &surface_loader,
+            queue_family_index,
             window.inner_size().width,
             window.inner_size().height,
         )?;
