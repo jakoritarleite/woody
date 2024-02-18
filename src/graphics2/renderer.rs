@@ -5,6 +5,7 @@ use winit::event_loop::EventLoop;
 use winit::window::Window;
 use winit::window::WindowBuilder;
 
+use super::vulkan;
 use super::vulkan::VulkanContext;
 
 pub(crate) struct Renderer {
@@ -25,6 +26,38 @@ impl Renderer {
             window,
             vulkan: vulkan_context,
         })
+    }
+
+    /// Handles window resizes.
+    pub(crate) fn resize(&mut self) {
+        self.vulkan.recreate_swapchain = true;
+    }
+
+    pub(crate) fn draw_frame(&mut self) -> Result<(), Error> {
+        match self.vulkan.begin_frame() {
+            Ok(_) => {}
+
+            Err(vulkan::Error::Unpresentable) => {
+                log::debug!("Skipping frame");
+                return Ok(());
+            }
+
+            err @ Err(_) => {
+                log::error!("Error begining frame {:?}", err);
+                err?
+            }
+        };
+
+        match self.vulkan.end_frame() {
+            Ok(_) | Err(vulkan::Error::Unpresentable) => {}
+
+            err @ Err(_) => {
+                log::error!("Error ending frame {:?}", err);
+                err?
+            }
+        }
+
+        Ok(())
     }
 }
 

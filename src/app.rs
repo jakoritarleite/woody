@@ -46,6 +46,7 @@ impl App {
         #[cfg(debug_assertions)]
         pretty_env_logger::formatted_builder()
             .filter_level(log::LevelFilter::Debug)
+            .filter_module("woody", log::LevelFilter::Trace)
             .init();
 
         let world = World::new();
@@ -93,6 +94,9 @@ impl App {
                 Event::AboutToWait => {
                     #[cfg(not(feature = "graphics2"))]
                     self.renderer.window.request_redraw();
+
+                    #[cfg(feature = "graphics2")]
+                    self.renderer.window.request_redraw();
                 }
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::RedrawRequested if !minimized => {
@@ -110,6 +114,9 @@ impl App {
                         };
 
                         #[cfg(not(feature = "graphics2"))]
+                        self.renderer.draw_frame().unwrap();
+
+                        #[cfg(feature = "graphics2")]
                         self.renderer.draw_frame().unwrap();
 
                         let _frame_elapsed_time = frame_start_time.elapsed().as_secs_f64();
@@ -130,6 +137,9 @@ impl App {
                             minimized = false;
                             #[cfg(not(feature = "graphics2"))]
                             self.renderer.resize().unwrap();
+
+                            #[cfg(feature = "graphics2")]
+                            self.renderer.resize();
                         }
                     }
 
