@@ -7,6 +7,7 @@ use ash::extensions::khr::Surface;
 use ash::extensions::khr::Swapchain;
 use ash::vk;
 use ash::Entry;
+use itertools::Itertools;
 use raw_window_handle::HasRawDisplayHandle;
 use raw_window_handle::HasRawWindowHandle;
 use thiserror::Error;
@@ -40,7 +41,7 @@ pub(crate) struct VulkanContext {
     window: Arc<Window>,
 
     /// Vulkan Instance.
-    instance: ash::Instance,
+    instance: Arc<ash::Instance>,
 
     #[cfg(debug_assertions)]
     /// Vulkan debug utils messenger.
@@ -121,6 +122,7 @@ impl VulkanContext {
                 None,
             )?
         };
+        let instance = Arc::new(instance);
 
         #[cfg(debug_assertions)]
         let debug_info = vk::DebugUtilsMessengerCreateInfoEXT::builder()
@@ -228,9 +230,9 @@ impl VulkanContext {
         let queue = unsafe { device.get_device_queue(queue_family_index, 0) };
 
         let swapchain = SwapchainContext::new(
-            &instance,
+            instance.clone(),
             physical_device,
-            &device,
+            device.clone(),
             surface,
             &surface_loader,
             window.inner_size().width,
@@ -255,25 +257,36 @@ impl VulkanContext {
         )?;
 
         // Create one commend buffer for each swapchain image.
-        let graphics_command_buffers = (0..=swapchain.images.len())
+        let graphics_command_buffers = (0..=SwapchainContext::MAX_FRAMES_IN_FLIGHT)
             .map(|_| command_pool.allocate(CommandBufferLevel::Primary))
             .collect::<Result<Vec<_>, _>>()?;
 
         let semaphore_create_info = vk::SemaphoreCreateInfo::builder();
 
-        let image_available_semaphores = (0..=swapchain.images.len())
-            .map(|_| unsafe { device.create_semaphore(&semaphore_create_info, None) })
+        let (image_available_semaphores, queue_complete_semaphores, in_flight_fences) = (0
+            ..=SwapchainContext::MAX_FRAMES_IN_FLIGHT)
+            .map(|_| unsafe {
+                (
+                    device.create_semaphore(&semaphore_create_info, None),
+                    device.create_semaphore(&semaphore_create_info, None),
+                    Fence::new(device.clone(), FenceCreateFlags::empty()),
+                )
+            })
+            .multiunzip::<(Vec<_>, Vec<_>, Vec<_>)>();
+
+        let image_available_semaphores = image_available_semaphores
+            .into_iter()
             .collect::<Result<Vec<_>, _>>()?;
 
-        let queue_complete_semaphores = (0..=swapchain.images.len())
-            .map(|_| unsafe { device.create_semaphore(&semaphore_create_info, None) })
+        let queue_complete_semaphores = queue_complete_semaphores
+            .into_iter()
             .collect::<Result<Vec<_>, _>>()?;
 
-        let in_flight_fences = (0..=swapchain.images.len())
-            .map(|_| Fence::new(device.clone(), FenceCreateFlags::empty()))
+        let in_flight_fences = in_flight_fences
+            .into_iter()
             .collect::<Result<Vec<_>, _>>()?;
 
-        let images_in_flight = vec![];
+        let images_in_flight = Vec::with_capacity(swapchain.images.len());
 
         Ok(Self {
             window,
@@ -314,6 +327,12 @@ See https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkResu
 
     #[error("Could not find a suitable memory index")]
     NoSuitableMemoryIndex,
+
+    #[error("Swapchain no longer matches Surface but can still be used.")]
+    Suboptimal,
+
+    #[error("Swapchain is out of date with Surface and must be recreated.")]
+    OutOfDate,
 }
 
 unsafe extern "system" fn vk_debug_callback(

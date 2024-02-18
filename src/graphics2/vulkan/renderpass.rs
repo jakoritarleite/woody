@@ -28,7 +28,7 @@ impl RenderPass {
     ) -> Result<Self, Error> {
         log::info!("Creating color attachment description");
         let color_attachment = vk::AttachmentDescription::builder()
-            .format(swapchain.image_format)
+            .format(swapchain.image_format())
             .samples(vk::SampleCountFlags::TYPE_1)
             .load_op(vk::AttachmentLoadOp::CLEAR)
             .store_op(vk::AttachmentStoreOp::STORE)

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use ash::extensions::khr::Surface;
 use ash::extensions::khr::Swapchain;
 use ash::vk;
@@ -6,6 +8,7 @@ use ash::Instance;
 
 use super::image::Image;
 use super::image::ImageCreateInfo;
+use super::sync::Fence;
 use super::Error;
 
 const CANDIDATE_FORMATS: [vk::Format; 3] = [
@@ -20,19 +23,23 @@ pub struct SwapchainContext {
     pub handle: Swapchain,
     pub images: Vec<vk::Image>,
     pub image_views: Vec<vk::ImageView>,
-    pub image_format: vk::Format,
-    pub image_color_space: vk::ColorSpaceKHR,
+    create_info: vk::SwapchainCreateInfoKHR,
     pub depth_format: vk::Format,
     pub depth_attachment: Image,
     pub extent: [u32; 2],
+    _instance: Arc<ash::Instance>,
+    _physical_device: vk::PhysicalDevice,
+    _device: Arc<ash::Device>,
 }
 
 impl SwapchainContext {
+    pub const MAX_FRAMES_IN_FLIGHT: u8 = 2;
+
     /// Creates a new instance of [`SwapchainContext`].
     pub fn new(
-        instance: &Instance,
+        instance: Arc<Instance>,
         physical_device: vk::PhysicalDevice,
-        device: &Device,
+        device: Arc<Device>,
         surface_khr: vk::SurfaceKHR,
         surface: &Surface,
         width: u32,
@@ -70,9 +77,10 @@ impl SwapchainContext {
             .present_mode(present_mode)
             .surface(surface_khr)
             .pre_transform(surface_capabilities.current_transform)
-            .image_array_layers(surface_capabilities.max_image_array_layers);
+            .image_array_layers(surface_capabilities.max_image_array_layers)
+            .clipped(true);
 
-        let loader = Swapchain::new(instance, device);
+        let loader = Swapchain::new(&instance, &device);
         let swapchain = unsafe { loader.create_swapchain(&swapchain_create_info, None)? };
 
         let images = unsafe { loader.get_swapchain_images(swapchain)? };
@@ -128,9 +136,9 @@ impl SwapchainContext {
         log::info!("Found supported depth format ({:?})", depth_format);
 
         let depth_attachment = Image::new(
-            instance,
+            &instance,
             physical_device,
-            device,
+            &device,
             ImageCreateInfo {
                 image_type: vk::ImageType::TYPE_2D,
                 format: depth_format,
@@ -150,11 +158,123 @@ impl SwapchainContext {
             handle: loader,
             images,
             image_views,
-            image_format: format,
-            image_color_space: color_space,
+            create_info: *swapchain_create_info,
             depth_format,
             depth_attachment,
             extent: [width, height],
+            _instance: instance,
+            _physical_device: physical_device,
+            _device: device,
         })
+    }
+
+    /// Recreates the swapchain.
+    pub fn recreate_swapchain(&mut self, width: u32, height: u32) -> Result<(), Error> {
+        if width == 0 || height == 0 {
+            log::info!("Ignoring swapchain recreation due to one of dimensions being 0");
+            return Ok(());
+        }
+
+        let swapchain_create_info = vk::SwapchainCreateInfoKHR {
+            image_extent: vk::Extent2D { width, height },
+            ..self.create_info
+        };
+
+        let swapchain = unsafe { self.handle.create_swapchain(&swapchain_create_info, None)? };
+
+        let images = unsafe { self.handle.get_swapchain_images(swapchain)? };
+        let image_views = images
+            .iter()
+            .map(|image| {
+                let subresource_range = vk::ImageSubresourceRange {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    base_mip_level: 0,
+                    level_count: 1,
+                    base_array_layer: 0,
+                    layer_count: 1,
+                };
+
+                let create_info = vk::ImageViewCreateInfo::builder()
+                    .view_type(vk::ImageViewType::TYPE_2D)
+                    .format(self.image_format())
+                    .subresource_range(subresource_range)
+                    .image(*image);
+
+                unsafe { self._device.create_image_view(&create_info, None) }
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let depth_attachment = Image::new(
+            &self._instance,
+            self._physical_device,
+            &self._device,
+            ImageCreateInfo {
+                image_type: vk::ImageType::TYPE_2D,
+                format: self.depth_format,
+                tiling: vk::ImageTiling::OPTIMAL,
+                usage: vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT,
+                aspect_mask: vk::ImageAspectFlags::DEPTH | vk::ImageAspectFlags::STENCIL,
+                extent: vk::Extent3D {
+                    width,
+                    height,
+                    depth: 1,
+                },
+            },
+        )?;
+
+        self.create_info = swapchain_create_info;
+        self.khr = swapchain;
+        self.images = images;
+        self.image_views = image_views;
+        self.depth_attachment = depth_attachment;
+        self.extent = [width, height];
+
+        Ok(())
+    }
+
+    /// Acquire next image to be used.
+    pub fn acquire_next_image(
+        &mut self,
+        timeout: u64,
+        semaphore: vk::Semaphore,
+        fence: Fence,
+    ) -> Result<u32, Error> {
+        let next_image = unsafe {
+            self.handle
+                .acquire_next_image(self.khr, timeout, semaphore, fence.handle)
+        };
+
+        match next_image {
+            Ok((index, _)) => Ok(index),
+            Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => Err(Error::OutOfDate),
+            Err(vk::Result::SUBOPTIMAL_KHR) => Err(Error::Suboptimal),
+            Err(error) => Err(Error::from(error)),
+        }
+    }
+
+    pub fn present(
+        &mut self,
+        graphics_queue: vk::Queue,
+        semaphore: vk::Semaphore,
+        image_index: u32,
+    ) -> Result<(), Error> {
+        let present_info = vk::PresentInfoKHR::builder()
+            .swapchains(std::slice::from_ref(&self.khr))
+            .image_indices(std::slice::from_ref(&image_index))
+            .wait_semaphores(std::slice::from_ref(&semaphore));
+
+        let result = unsafe { self.handle.queue_present(graphics_queue, &present_info) };
+
+        match result {
+            Ok(_) => Ok(()),
+            Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => Err(Error::OutOfDate),
+            Err(vk::Result::SUBOPTIMAL_KHR) => Err(Error::Suboptimal),
+            Err(error) => Err(Error::from(error)),
+        }
+    }
+
+    /// Returns the swapchain image format.
+    pub fn image_format(&self) -> vk::Format {
+        self.create_info.image_format
     }
 }
