@@ -1,9 +1,13 @@
+use std::sync::Arc;
+
 use ash::vk;
 use ash::Device;
 
 use crate::graphics2::RenderArea;
 use crate::graphics2::Rgba;
 
+use super::command_buffer::CommandBuffer;
+use super::framebuffer::Framebuffer;
 use super::swapchain::SwapchainContext;
 use super::Error;
 
@@ -14,12 +18,13 @@ pub struct RenderPass {
     pub clear_colors: Rgba,
     pub depth: f32,
     pub stencil: u32,
+    _device: Arc<Device>,
 }
 
 impl RenderPass {
     /// Creates a new instance of [`RenderPass`].
     pub fn new(
-        device: &Device,
+        device: Arc<Device>,
         swapchain: &SwapchainContext,
         render_area: RenderArea,
         clear_colors: Rgba,
@@ -89,6 +94,47 @@ impl RenderPass {
             clear_colors,
             depth,
             stencil,
+            _device: device,
         })
+    }
+
+    pub fn begin(&self, command_buffer: &CommandBuffer, framebuffer: &Framebuffer) {
+        let clear_color_value = vk::ClearValue {
+            color: vk::ClearColorValue {
+                float32: Into::<[f32; 4]>::into(self.clear_colors),
+            },
+        };
+        let clear_depth_value = vk::ClearValue {
+            depth_stencil: vk::ClearDepthStencilValue {
+                depth: self.depth,
+                stencil: self.stencil,
+            },
+        };
+        let clear_values = [clear_color_value, clear_depth_value];
+
+        let begin_info = vk::RenderPassBeginInfo::builder()
+            .render_pass(self.handle)
+            .render_area(self.render_area.into())
+            .clear_values(&clear_values)
+            .framebuffer(framebuffer.handle);
+
+        unsafe {
+            self._device.cmd_begin_render_pass(
+                command_buffer.handle,
+                &begin_info,
+                vk::SubpassContents::INLINE,
+            );
+        }
+    }
+
+    pub fn end(&self, command_buffer: &CommandBuffer) {
+        unsafe {
+            self._device.cmd_end_render_pass(command_buffer.handle);
+        }
+    }
+
+    /// Returns a mutable reference to [`Self::render_area`].
+    pub fn render_area_mut(&mut self) -> &mut RenderArea {
+        &mut self.render_area
     }
 }
