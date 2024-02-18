@@ -93,7 +93,7 @@ pub struct FenceCreateFlags(u32);
 
 bitflags! {
     impl FenceCreateFlags: u32 {
-        const SIGNALED = vk::FenceCreateFlags::SIGNALED.as_raw();
+        const Signaled = vk::FenceCreateFlags::SIGNALED.as_raw();
     }
 }
 
