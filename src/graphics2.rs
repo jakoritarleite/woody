@@ -6,6 +6,12 @@ pub mod vulkan;
 #[derive(Debug, Clone, Copy)]
 pub struct Rgba(pub f32, pub f32, pub f32, pub f32);
 
+impl From<Rgba> for [f32; 4] {
+    fn from(value: Rgba) -> Self {
+        [value.0, value.1, value.2, value.3]
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct RenderArea {
     pub x: f32,
@@ -21,6 +27,21 @@ impl From<PhysicalSize<u32>> for RenderArea {
             y: 0.0,
             w: value.width as f32,
             h: value.height as f32,
+        }
+    }
+}
+
+impl From<RenderArea> for ash::vk::Rect2D {
+    fn from(value: RenderArea) -> Self {
+        Self {
+            offset: ash::vk::Offset2D {
+                x: value.x as _,
+                y: value.y as _,
+            },
+            extent: ash::vk::Extent2D {
+                width: value.w as _,
+                height: value.h as _,
+            },
         }
     }
 }
