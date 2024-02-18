@@ -170,11 +170,28 @@ impl SwapchainContext {
 
     /// Recreates the swapchain.
     pub fn recreate_swapchain(&mut self, width: u32, height: u32) -> Result<(), Error> {
+        unsafe {
+            self._device.device_wait_idle()?;
+
+            self._device.free_memory(self.depth_attachment.memory, None);
+            self._device
+                .destroy_image_view(self.depth_attachment.view, None);
+            self._device
+                .destroy_image(self.depth_attachment.image, None);
+
+            for image_view in self.image_views.iter() {
+                self._device.destroy_image_view(*image_view, None);
+            }
+
+            self.handle.destroy_swapchain(self.khr, None);
+        }
+
         if width == 0 || height == 0 {
             log::info!("Ignoring swapchain recreation due to one of dimensions being 0");
             return Ok(());
         }
 
+        // TODO: check if we need to query the capabilities again.
         let swapchain_create_info = vk::SwapchainCreateInfoKHR {
             image_extent: vk::Extent2D { width, height },
             ..self.create_info
@@ -237,15 +254,21 @@ impl SwapchainContext {
         &mut self,
         timeout: u64,
         semaphore: vk::Semaphore,
-        fence: Fence,
-    ) -> Result<u32, Error> {
+        fence: Option<Fence>,
+    ) -> Result<(u32, bool), Error> {
         let next_image = unsafe {
-            self.handle
-                .acquire_next_image(self.khr, timeout, semaphore, fence.handle)
+            self.handle.acquire_next_image(
+                self.khr,
+                timeout,
+                semaphore,
+                fence
+                    .map(|fence| fence.handle)
+                    .unwrap_or_else(vk::Fence::null),
+            )
         };
 
         match next_image {
-            Ok((index, _)) => Ok(index),
+            Ok(next) => Ok(next),
             Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => Err(Error::OutOfDate),
             Err(vk::Result::SUBOPTIMAL_KHR) => Err(Error::Suboptimal),
             Err(error) => Err(Error::from(error)),
