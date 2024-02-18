@@ -8,6 +8,7 @@ use ash::vk;
 use super::Error;
 
 /// Abstraction of a [VkFence](https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkFence.html).
+#[derive(Clone)]
 pub struct Fence {
     pub(super) handle: vk::Fence,
     flags: FenceCreateFlags,
@@ -71,11 +72,13 @@ impl Fence {
             return Err(error)?;
         }
 
-        Ok(false)
+        Ok(true)
     }
 
-    pub fn reset(&mut self) -> Result<(), Error> {
-        unsafe { self._device.reset_fences(&[self.handle])? };
+    pub fn reset(&self) -> Result<(), Error> {
+        if self.is_signaled()? {
+            unsafe { self._device.reset_fences(&[self.handle])? };
+        }
 
         Ok(())
     }
