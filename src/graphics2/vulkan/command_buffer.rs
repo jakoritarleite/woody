@@ -7,7 +7,7 @@ use super::Error;
 
 /// Abstraction of the Vulkan CommandBuffer.
 pub struct CommandBuffer {
-    handle: vk::CommandBuffer,
+    pub(super) handle: vk::CommandBuffer,
     level: CommandBufferLevel,
     command_pool: vk::CommandPool,
     _device: Arc<ash::Device>,
@@ -108,16 +108,20 @@ impl From<CommandBufferLevel> for vk::CommandBufferLevel {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-#[repr(u32)]
-pub enum CommandBufferUsage {
-    OneTimeSubmit = vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT.as_raw(),
-    RenderPassContinue = vk::CommandBufferUsageFlags::RENDER_PASS_CONTINUE.as_raw(),
-    SimultaneousUse = vk::CommandBufferUsageFlags::SIMULTANEOUS_USE.as_raw(),
+pub struct CommandBufferUsage(u32);
+
+bitflags::bitflags! {
+    impl CommandBufferUsage: u32 {
+        const OneTimeSubmit = vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT.as_raw();
+        const RenderPassContinue = vk::CommandBufferUsageFlags::RENDER_PASS_CONTINUE.as_raw();
+        const SimultaneousUse = vk::CommandBufferUsageFlags::SIMULTANEOUS_USE.as_raw();
+        const MultipleSubmit = 0;
+    }
 }
 
 impl From<CommandBufferUsage> for vk::CommandBufferUsageFlags {
     fn from(value: CommandBufferUsage) -> Self {
-        Self::from_raw(value as u32)
+        Self::from_raw(value.0)
     }
 }
 
