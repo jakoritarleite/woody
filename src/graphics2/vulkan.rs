@@ -22,6 +22,7 @@ use crate::graphics2::RenderArea;
 use crate::graphics2::Rgba;
 
 use self::command_buffer::CommandBuffer;
+use self::command_buffer::CommandBufferUsage;
 use self::command_buffer::CommandPool;
 use self::framebuffer::Framebuffer;
 use self::renderpass::RenderPass;
@@ -62,6 +63,11 @@ pub(crate) struct VulkanContext {
     /// Swapchain context.
     swapchain: SwapchainContext,
 
+    /// Determines if the swapchain must be recreated.
+    ///
+    /// This is used when the window size changes.
+    pub(super) recreate_swapchain: bool,
+
     /// Vulkan main renderpass.
     renderpass: RenderPass,
 
@@ -82,8 +88,18 @@ pub(crate) struct VulkanContext {
     queue_complete_semaphores: Vec<vk::Semaphore>,
 
     in_flight_fence_count: u32,
-    in_flight_fences: Vec<Fence>,
-    images_in_flight: Vec<Fence>,
+    in_flight_fences: Vec<Arc<Fence>>,
+
+    /// This actually holds pointers to the [`Fence`]s owned by [`Self::in_flight_fences`].
+    images_in_flight: Vec<Option<Arc<Fence>>>,
+
+    current_frame: u8,
+
+    /// The current image we're drawing to.
+    image_index: u32,
+
+    /// Dynamic viewport used when we resize window.
+    viewport: vk::Viewport,
 }
 
 impl VulkanContext {
@@ -240,7 +256,7 @@ impl VulkanContext {
         )?;
 
         let renderpass = RenderPass::new(
-            &device,
+            device.clone(),
             &swapchain,
             RenderArea::from(window.inner_size()),
             Rgba(0.0, 0.0, 0.2, 1.0),
@@ -269,7 +285,7 @@ impl VulkanContext {
                 (
                     device.create_semaphore(&semaphore_create_info, None),
                     device.create_semaphore(&semaphore_create_info, None),
-                    Fence::new(device.clone(), FenceCreateFlags::empty()),
+                    Fence::new(device.clone(), FenceCreateFlags::Signaled),
                 )
             })
             .multiunzip::<(Vec<_>, Vec<_>, Vec<_>)>();
@@ -284,9 +300,21 @@ impl VulkanContext {
 
         let in_flight_fences = in_flight_fences
             .into_iter()
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .map(Arc::new)
+            .collect::<Vec<_>>();
 
-        let images_in_flight = Vec::with_capacity(swapchain.images.len());
+        let images_in_flight = vec![None; swapchain.images.len()];
+
+        let viewport = vk::Viewport {
+            x: 0.0,
+            y: 0.0,
+            width: window.inner_size().width as f32,
+            height: window.inner_size().height as f32,
+            min_depth: 0.0,
+            max_depth: 1.0,
+        };
 
         Ok(Self {
             window,
@@ -300,6 +328,7 @@ impl VulkanContext {
             device,
             queue,
             swapchain,
+            recreate_swapchain: false,
             renderpass,
             framebuffers,
             command_pool,
@@ -309,11 +338,154 @@ impl VulkanContext {
             in_flight_fence_count: in_flight_fences.len() as _,
             in_flight_fences,
             images_in_flight,
+            current_frame: 0,
+            image_index: 0,
+            viewport,
         })
+    }
+
+    pub fn begin_frame(&mut self) -> Result<(), Error> {
+        if self.recreate_swapchain {
+            unsafe {
+                self.device.device_wait_idle()?;
+            }
+
+            self.images_in_flight = vec![None; self.swapchain.images.len()];
+
+            let width = self.window.inner_size().width;
+            let height = self.window.inner_size().height;
+
+            log::trace!("Recreating swapchain");
+            self.swapchain.recreate_swapchain(width, height)?;
+
+            self.viewport.width = width as f32;
+            self.viewport.height = height as f32;
+
+            log::trace!("Updating Renderpass RenderArea");
+            *self.renderpass.render_area_mut() = self.window.inner_size().into();
+
+            log::trace!("Recreating framebuffers");
+            for framebuffer in self.framebuffers.iter() {
+                unsafe { self.device.destroy_framebuffer(framebuffer.handle, None) };
+            }
+
+            self.framebuffers =
+                generate_framebuffers(&self.device, &self.renderpass, &self.swapchain)?;
+
+            self.recreate_swapchain = false;
+
+            return Err(Error::Unpresentable);
+        }
+
+        // Wait for the current frame to complete.
+        if !self.in_flight_fences[self.current_frame as usize].wait(u64::MAX)? {
+            log::warn!("In-flight fence wait failed.");
+
+            return Err(Error::Unpresentable);
+        }
+
+        self.image_index = match self.swapchain.acquire_next_image(
+            u64::MAX,
+            self.image_available_semaphores[self.current_frame as usize],
+            None,
+        ) {
+            Ok((index, suboptimal)) => {
+                if suboptimal {
+                    self.recreate_swapchain = true;
+                }
+                index
+            }
+
+            Err(Error::OutOfDate) | Err(Error::Suboptimal) => {
+                self.recreate_swapchain = true;
+                return Err(Error::Unpresentable);
+            }
+
+            Err(error) => return Err(error),
+        };
+
+        let command_buffer = &mut self.graphics_command_buffers[self.image_index as usize];
+        command_buffer.begin(CommandBufferUsage::MultipleSubmit)?;
+
+        unsafe {
+            self.device
+                .cmd_set_viewport(command_buffer.handle, 0, &[self.viewport]);
+            self.device.cmd_set_scissor(
+                command_buffer.handle,
+                0,
+                &[vk::Rect2D {
+                    offset: vk::Offset2D { x: 0, y: 0 },
+                    extent: vk::Extent2D {
+                        width: self.window.inner_size().width,
+                        height: self.window.inner_size().height,
+                    },
+                }],
+            )
+        }
+
+        self.renderpass.begin(
+            command_buffer,
+            &self.framebuffers[self.image_index as usize],
+        );
+
+        Ok(())
+    }
+
+    pub fn end_frame(&mut self) -> Result<(), Error> {
+        let command_buffer = &mut self.graphics_command_buffers[self.image_index as usize];
+
+        self.renderpass.end(command_buffer);
+        command_buffer.end()?;
+
+        if let Some(images_in_flight) = &self.images_in_flight[self.image_index as usize] {
+            // Make sure the previous frame is not using this image.
+            images_in_flight.wait(u64::MAX)?;
+        }
+
+        // Mark the image fence as in-use by this frame.
+        self.images_in_flight[self.image_index as usize] =
+            Some(self.in_flight_fences[self.current_frame as usize].clone());
+
+        // Reset the fence for use in the next frame.
+        self.in_flight_fences[self.current_frame as usize].reset()?;
+
+        let submit_info = vk::SubmitInfo::builder()
+            .command_buffers(std::slice::from_ref(&command_buffer.handle))
+            .signal_semaphores(std::slice::from_ref(
+                &self.queue_complete_semaphores[self.current_frame as usize],
+            ))
+            .wait_semaphores(std::slice::from_ref(
+                &self.image_available_semaphores[self.current_frame as usize],
+            ))
+            .wait_dst_stage_mask(std::slice::from_ref(
+                &vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+            ));
+
+        unsafe {
+            self.device.queue_submit(
+                self.queue,
+                std::slice::from_ref(&submit_info),
+                self.in_flight_fences[self.current_frame as usize].handle,
+            )?;
+
+            match self.swapchain.present(
+                self.queue,
+                self.queue_complete_semaphores[self.current_frame as usize],
+                self.image_index,
+            ) {
+                Ok(_) | Err(Error::OutOfDate) | Err(Error::Suboptimal) => {}
+                err @ Err(_) => err?,
+            };
+        }
+
+        self.current_frame += 1;
+        self.current_frame %= SwapchainContext::MAX_FRAMES_IN_FLIGHT;
+
+        Ok(())
     }
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq, Eq)]
 pub(crate) enum Error {
     #[error(r#"Vulkan returned an error: {0}.
 See https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkResult.html for more information."#)]
@@ -333,6 +505,9 @@ See https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkResu
 
     #[error("Swapchain is out of date with Surface and must be recreated.")]
     OutOfDate,
+
+    #[error("The current frame is not presentable, and so it must be skipped.")]
+    Unpresentable,
 }
 
 unsafe extern "system" fn vk_debug_callback(
