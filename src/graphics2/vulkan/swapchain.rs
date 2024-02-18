@@ -30,6 +30,8 @@ pub struct SwapchainContext {
     _instance: Arc<ash::Instance>,
     _physical_device: vk::PhysicalDevice,
     _device: Arc<ash::Device>,
+    _surface: Arc<Surface>,
+    _surface_khr: vk::SurfaceKHR,
 }
 
 impl SwapchainContext {
@@ -41,7 +43,7 @@ impl SwapchainContext {
         physical_device: vk::PhysicalDevice,
         device: Arc<Device>,
         surface_khr: vk::SurfaceKHR,
-        surface: &Surface,
+        surface: Arc<Surface>,
         queue_family_index: u32,
         extent: vk::Extent2D,
     ) -> Result<Self, Error> {
@@ -66,11 +68,24 @@ impl SwapchainContext {
                 .unwrap_or(vk::PresentModeKHR::FIFO)
         };
 
+        let clampped_extent = vk::Extent2D {
+            width: clamp(
+                extent.width,
+                surface_capabilities.min_image_extent.width,
+                surface_capabilities.max_image_extent.width,
+            ),
+            height: clamp(
+                extent.height,
+                surface_capabilities.min_image_extent.height,
+                surface_capabilities.max_image_extent.height,
+            ),
+        };
+
         let swapchain_create_info = vk::SwapchainCreateInfoKHR::builder()
             .min_image_count(surface_capabilities.min_image_count.max(2))
             .image_format(format)
             .image_color_space(color_space)
-            .image_extent(extent)
+            .image_extent(clampped_extent)
             .image_usage(vk::ImageUsageFlags::COLOR_ATTACHMENT)
             .image_sharing_mode(vk::SharingMode::EXCLUSIVE)
             .composite_alpha(vk::CompositeAlphaFlagsKHR::OPAQUE)
@@ -170,6 +185,8 @@ impl SwapchainContext {
             _instance: instance,
             _physical_device: physical_device,
             _device: device,
+            _surface: surface,
+            _surface_khr: surface_khr,
         })
     }
 
@@ -196,9 +213,29 @@ impl SwapchainContext {
             return Ok(());
         }
 
+        let surface_capabilities = unsafe {
+            self._surface.get_physical_device_surface_capabilities(
+                self._physical_device,
+                self._surface_khr,
+            )?
+        };
+
+        let clampped_extent = vk::Extent2D {
+            width: clamp(
+                extent.width,
+                surface_capabilities.min_image_extent.width,
+                surface_capabilities.max_image_extent.width,
+            ),
+            height: clamp(
+                extent.height,
+                surface_capabilities.min_image_extent.height,
+                surface_capabilities.max_image_extent.height,
+            ),
+        };
+
         // TODO: check if we need to query the capabilities again.
         let swapchain_create_info = vk::SwapchainCreateInfoKHR {
-            image_extent: extent,
+            image_extent: clampped_extent,
             ..self.create_info
         };
 
@@ -304,5 +341,16 @@ impl SwapchainContext {
     /// Returns the swapchain image format.
     pub fn image_format(&self) -> vk::Format {
         self.create_info.image_format
+    }
+}
+
+fn clamp<T: Ord>(input: T, min: T, max: T) -> T {
+    debug_assert!(min <= max, "min must be less than or equal to max");
+    if input < min {
+        min
+    } else if input > max {
+        max
+    } else {
+        input
     }
 }

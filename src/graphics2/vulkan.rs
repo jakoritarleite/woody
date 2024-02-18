@@ -51,7 +51,7 @@ pub(crate) struct VulkanContext {
     _debug_messenger: vk::DebugUtilsMessengerEXT,
 
     /// Vulkan swapchain screen Surface.
-    surface: Surface,
+    surface: Arc<Surface>,
     surface_khr: vk::SurfaceKHR,
 
     /// Vulkan logical device.
@@ -172,7 +172,7 @@ impl VulkanContext {
                 None,
             )?
         };
-        let surface_loader = Surface::new(&entry, &instance);
+        let surface_loader = Arc::new(Surface::new(&entry, &instance));
 
         let (physical_device, queue_family_index) = unsafe {
             instance
@@ -250,7 +250,7 @@ impl VulkanContext {
             physical_device,
             device.clone(),
             surface,
-            &surface_loader,
+            surface_loader.clone(),
             queue_family_index,
             vk::Extent2D {
                 width: window.inner_size().width,
