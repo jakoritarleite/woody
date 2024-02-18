@@ -26,7 +26,7 @@ pub struct SwapchainContext {
     create_info: vk::SwapchainCreateInfoKHR,
     pub depth_format: vk::Format,
     pub depth_attachment: Image,
-    pub extent: [u32; 2],
+    pub extent: vk::Extent2D,
     _instance: Arc<ash::Instance>,
     _physical_device: vk::PhysicalDevice,
     _device: Arc<ash::Device>,
@@ -43,8 +43,7 @@ impl SwapchainContext {
         surface_khr: vk::SurfaceKHR,
         surface: &Surface,
         queue_family_index: u32,
-        width: u32,
-        height: u32,
+        extent: vk::Extent2D,
     ) -> Result<Self, Error> {
         let surface_capabilities = unsafe {
             surface.get_physical_device_surface_capabilities(physical_device, surface_khr)?
@@ -71,7 +70,7 @@ impl SwapchainContext {
             .min_image_count(surface_capabilities.min_image_count.max(2))
             .image_format(format)
             .image_color_space(color_space)
-            .image_extent(vk::Extent2D { width, height })
+            .image_extent(extent)
             .image_usage(vk::ImageUsageFlags::COLOR_ATTACHMENT)
             .image_sharing_mode(vk::SharingMode::EXCLUSIVE)
             .composite_alpha(vk::CompositeAlphaFlagsKHR::OPAQUE)
@@ -107,7 +106,11 @@ impl SwapchainContext {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        log::info!("Created swapchain with extent: ({}, {})", width, height);
+        log::info!(
+            "Created swapchain with extent: ({}, {})",
+            extent.width,
+            extent.height
+        );
 
         let mut depth_format = None;
 
@@ -148,8 +151,8 @@ impl SwapchainContext {
                 usage: vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT,
                 aspect_mask: vk::ImageAspectFlags::DEPTH | vk::ImageAspectFlags::STENCIL,
                 extent: vk::Extent3D {
-                    width,
-                    height,
+                    width: extent.width,
+                    height: extent.height,
                     depth: 1,
                 },
             },
@@ -163,7 +166,7 @@ impl SwapchainContext {
             create_info: *swapchain_create_info,
             depth_format,
             depth_attachment,
-            extent: [width, height],
+            extent,
             _instance: instance,
             _physical_device: physical_device,
             _device: device,
@@ -171,7 +174,7 @@ impl SwapchainContext {
     }
 
     /// Recreates the swapchain.
-    pub fn recreate_swapchain(&mut self, width: u32, height: u32) -> Result<(), Error> {
+    pub fn recreate_swapchain(&mut self, extent: vk::Extent2D) -> Result<(), Error> {
         unsafe {
             self._device.device_wait_idle()?;
 
@@ -188,14 +191,14 @@ impl SwapchainContext {
             self.handle.destroy_swapchain(self.khr, None);
         }
 
-        if width == 0 || height == 0 {
+        if extent.width == 0 || extent.height == 0 {
             log::info!("Ignoring swapchain recreation due to one of dimensions being 0");
             return Ok(());
         }
 
         // TODO: check if we need to query the capabilities again.
         let swapchain_create_info = vk::SwapchainCreateInfoKHR {
-            image_extent: vk::Extent2D { width, height },
+            image_extent: extent,
             ..self.create_info
         };
 
@@ -234,8 +237,8 @@ impl SwapchainContext {
                 usage: vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT,
                 aspect_mask: vk::ImageAspectFlags::DEPTH | vk::ImageAspectFlags::STENCIL,
                 extent: vk::Extent3D {
-                    width,
-                    height,
+                    width: extent.width,
+                    height: extent.height,
                     depth: 1,
                 },
             },
@@ -246,7 +249,7 @@ impl SwapchainContext {
         self.images = images;
         self.image_views = image_views;
         self.depth_attachment = depth_attachment;
-        self.extent = [width, height];
+        self.extent = extent;
 
         Ok(())
     }

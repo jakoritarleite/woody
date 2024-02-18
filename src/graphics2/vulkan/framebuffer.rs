@@ -50,7 +50,7 @@ pub fn generate_framebuffers(
             Framebuffer::new(
                 device,
                 renderpass,
-                swapchain.extent,
+                [swapchain.extent.width, swapchain.extent.height],
                 &[*image_view, swapchain.depth_attachment.view],
             )
         })

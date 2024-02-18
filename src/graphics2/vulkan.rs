@@ -252,8 +252,10 @@ impl VulkanContext {
             surface,
             &surface_loader,
             queue_family_index,
-            window.inner_size().width,
-            window.inner_size().height,
+            vk::Extent2D {
+                width: window.inner_size().width,
+                height: window.inner_size().height,
+            },
         )?;
 
         let renderpass = RenderPass::new(
@@ -357,7 +359,8 @@ impl VulkanContext {
             let height = self.window.inner_size().height;
 
             log::trace!("Recreating swapchain");
-            self.swapchain.recreate_swapchain(width, height)?;
+            self.swapchain
+                .recreate_swapchain(vk::Extent2D { width, height })?;
 
             self.viewport.width = width as f32;
             self.viewport.height = height as f32;
