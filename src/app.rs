@@ -13,10 +13,6 @@ use crate::camera::Camera;
 use crate::ecs::world::World;
 use crate::event::CreateEvent;
 use crate::event::UpdateEvent;
-#[cfg(not(feature = "graphics2"))]
-use crate::graphics::renderer::Renderer;
-#[cfg(feature = "graphics2")]
-use crate::graphics2::renderer::Renderer;
 use crate::input::keyboard::KeyboardEvent;
 use crate::input::CursorEvent;
 use crate::input::MouseEvent;
@@ -33,9 +29,9 @@ pub struct App {
     pub world: World,
     pub systems: Systems,
     #[cfg(not(feature = "graphics2"))]
-    renderer: Renderer,
+    renderer: crate::graphics::renderer::Renderer,
     #[cfg(feature = "graphics2")]
-    renderer: Renderer,
+    renderer: crate::graphics2::renderer::Renderer,
     state: GameState,
     clock: Clock,
 }
@@ -54,9 +50,11 @@ impl App {
         let event_loop = EventLoop::new()?;
         let systems = Systems::default();
         #[cfg(not(feature = "graphics2"))]
-        let renderer = Renderer::new(&event_loop).expect("creating renderer frontend");
+        let renderer = crate::graphics::renderer::Renderer::new(&event_loop)
+            .expect("creating renderer frontend");
         #[cfg(feature = "graphics2")]
-        let renderer = Renderer::new(&event_loop).expect("creating renderer frontend");
+        let renderer = crate::graphics2::renderer::Renderer::new(&event_loop)
+            .expect("creating renderer frontend");
         let state = GameState {
             delta_time: 0.0,
             last_time: 0.0,
@@ -66,9 +64,6 @@ impl App {
             Self {
                 world,
                 systems,
-                #[cfg(not(feature = "graphics2"))]
-                renderer,
-                #[cfg(feature = "graphics2")]
                 renderer,
                 clock: Clock::new(),
                 state,

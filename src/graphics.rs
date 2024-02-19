@@ -12,7 +12,7 @@ pub enum GraphicsError {
     LibraryLoading(#[from] vulkano::LoadingError),
 
     #[error("Could not fetch window or display handle: {0}")]
-    Handle(#[from] raw_window_handle::HandleError),
+    Handle(#[from] winit::raw_window_handle::HandleError),
 
     #[error("Could not create swapchain handle from window")]
     SwapchainFromWindow(#[from] vulkano::swapchain::FromWindowError),
