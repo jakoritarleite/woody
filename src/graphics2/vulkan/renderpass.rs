@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
 use ash::vk;
-use ash::Device;
 
 use crate::graphics2::RenderArea;
 use crate::graphics2::Rgba;
 
 use super::command_buffer::CommandBuffer;
+use super::device::Device;
 use super::framebuffer::Framebuffer;
 use super::swapchain::SwapchainContext;
 use super::Error;

@@ -1,8 +1,9 @@
 use ash::vk;
 use ash::vk::Extent3D;
-use ash::Device;
-use ash::Instance;
 
+use super::device::Device;
+use super::device::PhysicalDevice;
+use super::instance::Instance;
 use super::Error;
 
 /// Abstraction for the Vulkan Image and ImageView.
@@ -31,7 +32,6 @@ impl Image {
     /// Creates a new instance of [`Image`].
     pub fn new(
         instance: &Instance,
-        physical_device: vk::PhysicalDevice,
         device: &Device,
         create_info: ImageCreateInfo,
     ) -> Result<Self, Error> {
@@ -58,8 +58,9 @@ impl Image {
 
         let image = unsafe { device.create_image(&image_create_info, None)? };
 
-        let device_memory_properties =
-            unsafe { instance.get_physical_device_memory_properties(physical_device) };
+        let device_memory_properties = unsafe {
+            instance.get_physical_device_memory_properties(device.physical_device().handle)
+        };
         let image_memory_requirements = unsafe { device.get_image_memory_requirements(image) };
 
         let memory_type_index = device_memory_properties.memory_types

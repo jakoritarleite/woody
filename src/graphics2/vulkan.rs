@@ -16,7 +16,10 @@ use winit::window::Window;
 
 use crate::graphics2::vulkan::command_buffer::CommandBufferLevel;
 use crate::graphics2::vulkan::command_buffer::CommandPoolCreateFlags;
+use crate::graphics2::vulkan::device::Device;
+use crate::graphics2::vulkan::device::PhysicalDeviceFeatures;
 use crate::graphics2::vulkan::framebuffer::generate_framebuffers;
+use crate::graphics2::vulkan::instance::Instance;
 use crate::graphics2::vulkan::sync::FenceCreateFlags;
 use crate::graphics2::RenderArea;
 use crate::graphics2::Rgba;
@@ -30,8 +33,10 @@ use self::swapchain::SwapchainContext;
 use self::sync::Fence;
 
 mod command_buffer;
+mod device;
 mod framebuffer;
 mod image;
+mod instance;
 mod renderpass;
 mod swapchain;
 mod sync;
@@ -42,7 +47,7 @@ pub(crate) struct VulkanContext {
     window: Arc<Window>,
 
     /// Vulkan Instance.
-    instance: Arc<ash::Instance>,
+    instance: Arc<Instance>,
 
     #[cfg(debug_assertions)]
     /// Vulkan debug utils messenger.
@@ -55,7 +60,7 @@ pub(crate) struct VulkanContext {
     surface_khr: vk::SurfaceKHR,
 
     /// Vulkan logical device.
-    device: Arc<ash::Device>,
+    device: Arc<Device>,
 
     /// Vulkan graphics queue.
     queue: vk::Queue,
@@ -129,15 +134,12 @@ impl VulkanContext {
             debug_str_raw_pointers(&layers)
         );
 
-        let instance = unsafe {
-            entry.create_instance(
-                &vk::InstanceCreateInfo::builder()
-                    .application_info(&application_info)
-                    .enabled_extension_names(&extensions)
-                    .enabled_layer_names(&layers),
-                None,
-            )?
-        };
+        let instance_create_info = vk::InstanceCreateInfo::builder()
+            .application_info(&application_info)
+            .enabled_extension_names(&extensions)
+            .enabled_layer_names(&layers);
+
+        let instance = Instance::new(entry.clone(), &instance_create_info)?;
         let instance = Arc::new(instance);
 
         #[cfg(debug_assertions)]
@@ -174,80 +176,75 @@ impl VulkanContext {
         };
         let surface_loader = Arc::new(Surface::new(&entry, &instance));
 
-        let (physical_device, queue_family_index) = unsafe {
-            instance
-                .enumerate_physical_devices()?
-                .iter()
-                .flat_map(|device| {
-                    instance
-                        .get_physical_device_queue_family_properties(*device)
-                        .iter()
-                        .map(|props| (*device, *props))
-                        .collect::<Vec<_>>()
-                })
-                .enumerate()
-                .filter(|(_, (_, props))| props.queue_flags.contains(vk::QueueFlags::GRAPHICS))
-                .filter_map(|(index, (device, _))| {
-                    if surface_loader
-                        .get_physical_device_surface_support(device, index as u32, surface)
-                        .is_ok()
-                    {
-                        return Some((device, index as u32));
-                    }
-
-                    None
-                })
-                .min_by_key(|(device, _)| {
-                    match instance.get_physical_device_properties(*device).device_type {
-                        vk::PhysicalDeviceType::DISCRETE_GPU => 0,
-                        vk::PhysicalDeviceType::INTEGRATED_GPU => 1,
-                        vk::PhysicalDeviceType::VIRTUAL_GPU => 2,
-                        vk::PhysicalDeviceType::CPU => 3,
-                        vk::PhysicalDeviceType::OTHER => 4,
-                        _ => 5,
-                    }
-                })
-                .ok_or(Error::NoSuitablePhysicalDevice)?
-        };
-
-        let device_props = unsafe { instance.get_physical_device_properties(physical_device) };
-
-        log::info!(
-            "Selected physical device ( {:?} : {:?} )",
-            CStr::from_bytes_until_nul(
-                &device_props
-                    .device_name
-                    .iter()
-                    .map(|char| *char as u8)
-                    .collect::<Vec<_>>(),
-            )
-            .expect("Invalid device name"),
-            device_props.device_type
-        );
-
         let device_extensions = [
             Swapchain::name().as_ptr(),
             "VK_KHR_separate_depth_stencil_layouts\0".as_ptr().cast(),
         ];
-        let device_features = vk::PhysicalDeviceFeatures::default();
+
+        log::debug!(
+            "Vulkan physical device extensions: {:?}",
+            debug_str_raw_pointers(&device_extensions)
+        );
+
+        let device_features = PhysicalDeviceFeatures {
+            sampler_anisotropy: true,
+            sample_rate_shading: true,
+            ..Default::default()
+        };
+
+        let (physical_device, queue_family_index) = instance
+            .enumerate_physical_devices()
+            .filter(|device| device.features().contains(&device_features))
+            .filter(|device| device.supports_extensions(debug_str_raw_pointers(&device_extensions)))
+            .filter_map(|device| {
+                let Some((queue_family_index, _)) = device
+                    .queue_family_properties()
+                    .enumerate()
+                    .find(|(index, queue)| {
+                        queue.queue_flags.contains(vk::QueueFlags::GRAPHICS)
+                            && device
+                                .supports_surface(*index as _, &surface_loader, surface)
+                                .unwrap_or(false)
+                    })
+                else {
+                    return None;
+                };
+
+                Some((device, queue_family_index as u32))
+            })
+            .min_by_key(|(device, _)| match device.properties().device_type {
+                vk::PhysicalDeviceType::DISCRETE_GPU => 0,
+                vk::PhysicalDeviceType::INTEGRATED_GPU => 1,
+                vk::PhysicalDeviceType::VIRTUAL_GPU => 2,
+                vk::PhysicalDeviceType::CPU => 3,
+                vk::PhysicalDeviceType::OTHER => 4,
+                _ => 5,
+            })
+            .ok_or(Error::NoSuitablePhysicalDevice)?;
+
+        log::info!(
+            "Selected physical device ( {:?} : {:?} )",
+            physical_device.properties().device_name,
+            physical_device.properties().device_type
+        );
 
         let queue_create_info = vk::DeviceQueueCreateInfo::builder()
             .queue_family_index(queue_family_index)
             .queue_priorities(&[1.0]);
 
+        let device_features = device_features.into();
         let device_create_info = vk::DeviceCreateInfo::builder()
             .queue_create_infos(std::slice::from_ref(&queue_create_info))
             .enabled_extension_names(&device_extensions)
             .enabled_features(&device_features);
 
-        let device = unsafe { instance.create_device(physical_device, &device_create_info, None)? };
+        let device = Device::new(&instance, physical_device.clone(), &device_create_info)?;
         let device = Arc::new(device);
 
         let queue = unsafe { device.get_device_queue(queue_family_index, 0) };
 
         let swapchain = SwapchainContext::new(
             instance.clone(),
-            physical_device,
             device.clone(),
             surface,
             surface_loader.clone(),
@@ -542,9 +539,13 @@ unsafe extern "system" fn vk_debug_callback(
 }
 
 #[inline]
-fn debug_str_raw_pointers(ptrs: &[*const i8]) -> Vec<&CStr> {
+fn debug_str_raw_pointers(ptrs: &[*const i8]) -> Vec<String> {
     ptrs.iter()
-        .map(|ptr| unsafe { CStr::from_ptr(*ptr) })
+        .map(|ptr| {
+            unsafe { CStr::from_ptr(*ptr) }
+                .to_string_lossy()
+                .to_string()
+        })
         .collect()
 }
 

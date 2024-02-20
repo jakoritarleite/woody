@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use bitflags::bitflags;
 
-use ash;
 use ash::vk;
 
+use super::device::Device;
 use super::Error;
 
 /// Abstraction of a [VkFence](https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkFence.html).
@@ -12,12 +12,12 @@ use super::Error;
 pub struct Fence {
     pub(super) handle: vk::Fence,
     flags: FenceCreateFlags,
-    _device: Arc<ash::Device>,
+    _device: Arc<Device>,
 }
 
 impl Fence {
     /// Creates a new instance of [`Fence`].
-    pub fn new(device: Arc<ash::Device>, flags: FenceCreateFlags) -> Result<Self, Error> {
+    pub fn new(device: Arc<Device>, flags: FenceCreateFlags) -> Result<Self, Error> {
         let create_info = vk::FenceCreateInfo::builder().flags(flags.into());
 
         let fence = unsafe { device.create_fence(&create_info, None)? };

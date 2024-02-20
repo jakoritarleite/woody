@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use ash;
 use ash::vk;
 
+use super::device::Device;
 use super::Error;
 
 /// Abstraction of the Vulkan CommandBuffer.
@@ -10,7 +10,7 @@ pub struct CommandBuffer {
     pub(super) handle: vk::CommandBuffer,
     level: CommandBufferLevel,
     command_pool: vk::CommandPool,
-    _device: Arc<ash::Device>,
+    _device: Arc<Device>,
     // TODO: maybe set command buffer states?
     // NotAllocated, Ready, Recording, InRenderPass, RecordingEnded, Submitted
 }
@@ -20,7 +20,7 @@ impl CommandBuffer {
     fn new(
         level: CommandBufferLevel,
         command_pool: &CommandPool,
-        device: Arc<ash::Device>,
+        device: Arc<Device>,
     ) -> Result<Self, Error> {
         let allocate_info = vk::CommandBufferAllocateInfo::builder()
             .command_pool(command_pool.handle)
@@ -128,13 +128,13 @@ impl From<CommandBufferUsage> for vk::CommandBufferUsageFlags {
 /// Abstraction of the Vulkan CommandPool.
 pub struct CommandPool {
     pub(super) handle: vk::CommandPool,
-    _device: Arc<ash::Device>,
+    _device: Arc<Device>,
 }
 
 impl CommandPool {
     /// Creates a new instance of [`CommandPool`].
     pub fn new(
-        device: Arc<ash::Device>,
+        device: Arc<Device>,
         queue_family_index: u32,
         create_flags: CommandPoolCreateFlags,
     ) -> Result<Self, Error> {

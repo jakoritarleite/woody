@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
-use ash::extensions::khr::Surface;
-use ash::extensions::khr::Swapchain;
+use ash::extensions::khr;
 use ash::vk;
-use ash::Device;
-use ash::Instance;
 
+use super::device::Device;
+use super::device::PhysicalDevice;
 use super::image::Image;
 use super::image::ImageCreateInfo;
+use super::instance::Instance;
 use super::sync::Fence;
 use super::Error;
 
@@ -20,17 +20,16 @@ const CANDIDATE_FORMATS: [vk::Format; 3] = [
 /// Abstraction of the Vulkan Swapchain.
 pub struct SwapchainContext {
     pub khr: vk::SwapchainKHR,
-    pub handle: Swapchain,
+    pub handle: khr::Swapchain,
     pub images: Vec<vk::Image>,
     pub image_views: Vec<vk::ImageView>,
     create_info: vk::SwapchainCreateInfoKHR,
     pub depth_format: vk::Format,
     pub depth_attachment: Image,
     pub extent: vk::Extent2D,
-    _instance: Arc<ash::Instance>,
-    _physical_device: vk::PhysicalDevice,
-    _device: Arc<ash::Device>,
-    _surface: Arc<Surface>,
+    _instance: Arc<Instance>,
+    _device: Arc<Device>,
+    _surface: Arc<khr::Surface>,
     _surface_khr: vk::SurfaceKHR,
 }
 
@@ -40,15 +39,17 @@ impl SwapchainContext {
     /// Creates a new instance of [`SwapchainContext`].
     pub fn new(
         instance: Arc<Instance>,
-        physical_device: vk::PhysicalDevice,
         device: Arc<Device>,
         surface_khr: vk::SurfaceKHR,
-        surface: Arc<Surface>,
+        surface: Arc<khr::Surface>,
         queue_family_index: u32,
         extent: vk::Extent2D,
     ) -> Result<Self, Error> {
         let surface_capabilities = unsafe {
-            surface.get_physical_device_surface_capabilities(physical_device, surface_khr)?
+            surface.get_physical_device_surface_capabilities(
+                device.physical_device().handle,
+                surface_khr,
+            )?
         };
 
         // Chosing the internal format that the images will have.
@@ -56,13 +57,18 @@ impl SwapchainContext {
             format,
             color_space,
         } = unsafe {
-            surface.get_physical_device_surface_formats(physical_device, surface_khr)?[0]
+            surface
+                .get_physical_device_surface_formats(device.physical_device().handle, surface_khr)?
+                [0]
         };
 
         // Check if Surface supports using Mailbox, if not use Fifo.
         let present_mode = unsafe {
             surface
-                .get_physical_device_surface_present_modes(physical_device, surface_khr)?
+                .get_physical_device_surface_present_modes(
+                    device.physical_device().handle,
+                    surface_khr,
+                )?
                 .into_iter()
                 .find(|mode| *mode == vk::PresentModeKHR::MAILBOX)
                 .unwrap_or(vk::PresentModeKHR::FIFO)
@@ -96,7 +102,7 @@ impl SwapchainContext {
             .queue_family_indices(std::slice::from_ref(&queue_family_index))
             .clipped(true);
 
-        let loader = Swapchain::new(&instance, &device);
+        let loader = khr::Swapchain::new(&instance, &device);
         let swapchain = unsafe { loader.create_swapchain(&swapchain_create_info, None)? };
 
         let images = unsafe { loader.get_swapchain_images(swapchain)? };
@@ -130,8 +136,10 @@ impl SwapchainContext {
         let mut depth_format = None;
 
         for format in CANDIDATE_FORMATS.into_iter() {
-            let format_properties =
-                unsafe { instance.get_physical_device_format_properties(physical_device, format) };
+            let format_properties = unsafe {
+                instance
+                    .get_physical_device_format_properties(device.physical_device().handle, format)
+            };
 
             let linear_tiling_contains_depth_stencil_attachment = format_properties
                 .linear_tiling_features
@@ -157,7 +165,6 @@ impl SwapchainContext {
 
         let depth_attachment = Image::new(
             &instance,
-            physical_device,
             &device,
             ImageCreateInfo {
                 image_type: vk::ImageType::TYPE_2D,
@@ -183,7 +190,6 @@ impl SwapchainContext {
             depth_attachment,
             extent,
             _instance: instance,
-            _physical_device: physical_device,
             _device: device,
             _surface: surface,
             _surface_khr: surface_khr,
@@ -215,7 +221,7 @@ impl SwapchainContext {
 
         let surface_capabilities = unsafe {
             self._surface.get_physical_device_surface_capabilities(
-                self._physical_device,
+                self._device.physical_device().handle,
                 self._surface_khr,
             )?
         };
@@ -265,7 +271,6 @@ impl SwapchainContext {
 
         let depth_attachment = Image::new(
             &self._instance,
-            self._physical_device,
             &self._device,
             ImageCreateInfo {
                 image_type: vk::ImageType::TYPE_2D,
