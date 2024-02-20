@@ -1,6 +1,5 @@
 use thiserror::Error;
 
-pub mod camera;
 pub mod renderer;
 pub mod uniform;
 mod vertex;
@@ -13,7 +12,7 @@ pub enum GraphicsError {
     LibraryLoading(#[from] vulkano::LoadingError),
 
     #[error("Could not fetch window or display handle: {0}")]
-    Handle(#[from] raw_window_handle::HandleError),
+    Handle(#[from] winit::raw_window_handle::HandleError),
 
     #[error("Could not create swapchain handle from window")]
     SwapchainFromWindow(#[from] vulkano::swapchain::FromWindowError),
@@ -54,11 +53,12 @@ pub enum GraphicsError {
     #[error("Device does not support any candidate depth formats")]
     NoSupportedDepthFormat,
 
-    //#[error("Could not allocate image: {0}")]
-    //ImageAllocate(#[from] vulkano::Validated<vulkano::image::ImageAllocateError>),
     #[error("Cannot perform command in a command_buffer that is in a invalid state: {0}")]
     InvalidCommandBufferUsage(&'static str),
 
     #[error("Could not allocate memory: {0}")]
     MemoryAllocator(#[from] vulkano::memory::allocator::MemoryAllocatorError),
+
+    #[error("Unsupported layout transition from {0:?} to {1:?}")]
+    LayoutTransition(vulkano::image::ImageLayout, vulkano::image::ImageLayout),
 }
