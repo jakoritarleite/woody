@@ -38,6 +38,7 @@ mod framebuffer;
 mod image;
 mod instance;
 mod renderpass;
+mod shader;
 mod swapchain;
 mod sync;
 

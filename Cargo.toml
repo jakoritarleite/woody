@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 ecs_macros = { path = "macros/ecs" }
+shader_macros = { path = "macros/shader" }
 winit = { version = "0.29.4", features = ["rwh_05"] }
 thiserror = "1.0.44"
 vulkano = { git = "https://github.com/vulkano-rs/vulkano", rev = "1f99160" }

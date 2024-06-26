@@ -1,0 +1,14 @@
+[package]
+name = "shader_macros"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+proc-macro2 = "1.0.86"
+quote = "1.0.36"
+shaderc = "0.8.3"
+syn = { version = "2.0.68", features = ["full", "extra-traits"] }
+# woody = { workspace = true }
+
+[lib]
+proc-macro = true
