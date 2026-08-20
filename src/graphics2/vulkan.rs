@@ -32,6 +32,7 @@ use self::renderpass::RenderPass;
 use self::swapchain::SwapchainContext;
 use self::sync::Fence;
 
+mod buffer;
 mod command_buffer;
 mod device;
 mod framebuffer;
