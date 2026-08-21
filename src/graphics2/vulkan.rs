@@ -38,10 +38,12 @@ mod device;
 mod framebuffer;
 mod image;
 mod instance;
+mod pipeline;
 mod renderpass;
 mod shader;
 mod swapchain;
 mod sync;
+mod uniform;
 
 /// Vulkan graphics context.
 pub(crate) struct VulkanContext {
@@ -115,11 +117,17 @@ impl VulkanContext {
         let entry = Entry::linked();
         let application_info = vk::ApplicationInfo::builder()
             .api_version(vk::make_api_version(0, 1, 3, 0))
-            .application_name(unsafe { CStr::from_ptr(b"Woody Engine\0".as_ptr().cast()) });
+            .application_name(c"Woody Engine");
 
         let mut extensions =
             ash_window::enumerate_required_extensions(window.raw_display_handle())?.to_vec();
         extensions.push(DebugUtils::name().as_ptr());
+
+        extensions.extend_from_slice(&[
+            DebugUtils::name().as_ptr(),
+            #[cfg(target_os = "macos")]
+            c"VK_KHR_portability_enumeration".as_ptr(),
+        ]);
 
         log::debug!(
             "Vulkan loaded extensions: {:?}",
@@ -128,7 +136,7 @@ impl VulkanContext {
 
         let layers = [
             #[cfg(debug_assertions)]
-            "VK_LAYER_KHRONOS_validation\0".as_ptr().cast(),
+            c"VK_LAYER_KHRONOS_validation".as_ptr(),
         ];
 
         log::debug!(
@@ -136,10 +144,17 @@ impl VulkanContext {
             debug_str_raw_pointers(&layers)
         );
 
+        let instance_create_flags = vk::InstanceCreateFlags::default();
+
+        #[cfg(target_os = "macos")]
+        let instance_create_flags =
+            instance_create_flags | vk::InstanceCreateFlags::ENUMERATE_PORTABILITY_KHR;
+
         let instance_create_info = vk::InstanceCreateInfo::builder()
             .application_info(&application_info)
             .enabled_extension_names(&extensions)
-            .enabled_layer_names(&layers);
+            .enabled_layer_names(&layers)
+            .flags(instance_create_flags);
 
         let instance = Instance::new(entry.clone(), &instance_create_info)?;
         let instance = Arc::new(instance);
@@ -180,7 +195,7 @@ impl VulkanContext {
 
         let device_extensions = [
             Swapchain::name().as_ptr(),
-            "VK_KHR_separate_depth_stencil_layouts\0".as_ptr().cast(),
+            c"VK_KHR_separate_depth_stencil_layouts".as_ptr(),
         ];
 
         log::debug!(
@@ -199,18 +214,16 @@ impl VulkanContext {
             .filter(|device| device.features().contains(&device_features))
             .filter(|device| device.supports_extensions(debug_str_raw_pointers(&device_extensions)))
             .filter_map(|device| {
-                let Some((queue_family_index, _)) = device
-                    .queue_family_properties()
-                    .enumerate()
-                    .find(|(index, queue)| {
-                        queue.queue_flags.contains(vk::QueueFlags::GRAPHICS)
-                            && device
-                                .supports_surface(*index as _, &surface_loader, surface)
-                                .unwrap_or(false)
-                    })
-                else {
-                    return None;
-                };
+                let (queue_family_index, _) =
+                    device
+                        .queue_family_properties()
+                        .enumerate()
+                        .find(|(index, queue)| {
+                            queue.queue_flags.contains(vk::QueueFlags::GRAPHICS)
+                                && device
+                                    .supports_surface(*index as _, &surface_loader, surface)
+                                    .unwrap_or(false)
+                        })?;
 
                 Some((device, queue_family_index as u32))
             })
