@@ -10,7 +10,7 @@ winit = { version = "0.29.4", features = ["rwh_05"] }
 thiserror = "1.0.44"
 vulkano = { git = "https://github.com/vulkano-rs/vulkano", rev = "1f99160" }
 vulkano-shaders = { git = "https://github.com/vulkano-rs/vulkano", rev = "1f99160" }
-bytemuck = "1.13.1"
+bytemuck = { version = "1.13.1", features = ["derive"] }
 lazy_static = "1.4.0"
 ahash = "0.8.3"
 glam = { version = "0.24.1", features = ["bytemuck"] }

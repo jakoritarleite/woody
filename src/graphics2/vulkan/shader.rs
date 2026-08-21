@@ -1,3 +1,4 @@
+use std::ffi::CString;
 use std::sync::Arc;
 
 use ash::vk;
@@ -28,6 +29,8 @@ impl ShaderModule {
 
 pub struct ShaderStage {
     handle: Arc<ShaderModule>,
+    /// Kept alive so `stage_create_info.p_name` stays valid.
+    entry_point: CString,
     stage_create_info: vk::PipelineShaderStageCreateInfo,
 }
 
@@ -37,21 +40,23 @@ impl ShaderStage {
         entry_point: impl Into<String>,
         stage: vk::ShaderStageFlags,
     ) -> Self {
-        let entry_point: String = entry_point.into();
+        let entry_point =
+            CString::new(entry_point.into()).expect("entry point name contains a NUL byte");
 
         let stage_create_info = vk::PipelineShaderStageCreateInfo::builder()
             .module(module.handle)
-            .name(
-                std::ffi::CString::new(entry_point.as_str())
-                    .unwrap() // TODO: handle this error
-                    .as_c_str(),
-            )
+            .name(entry_point.as_c_str())
             .stage(stage)
             .build();
 
         Self {
             handle: Arc::new(module),
+            entry_point,
             stage_create_info,
         }
+    }
+
+    pub fn stage_create_info(&self) -> vk::PipelineShaderStageCreateInfo {
+        self.stage_create_info
     }
 }
