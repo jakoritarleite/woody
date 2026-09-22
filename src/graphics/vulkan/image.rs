@@ -1,6 +1,14 @@
 use std::sync::Arc;
 
 use log::info;
+use vulkano::command_buffer::sys::RawRecordingCommandBuffer;
+use vulkano::command_buffer::BufferImageCopy;
+use vulkano::command_buffer::CopyBufferToImageInfo;
+use vulkano::command_buffer::CopyImageInfo;
+use vulkano::command_buffer::ImageBlit;
+use vulkano::command_buffer::ImageCopy;
+use vulkano::command_buffer::ResolveImageInfo;
+use vulkano::device::Queue;
 use vulkano::format::Format;
 use vulkano::image::view::ImageView as vkImageView;
 use vulkano::image::view::ImageViewCreateInfo;
@@ -9,20 +17,29 @@ use vulkano::image::Image as vkImage;
 use vulkano::image::ImageAspects;
 use vulkano::image::ImageCreateInfo as vkImageCreateInfo;
 use vulkano::image::ImageLayout;
+use vulkano::image::ImageSubresourceLayers;
 use vulkano::image::ImageSubresourceRange;
 use vulkano::image::ImageTiling;
 use vulkano::image::ImageType;
 use vulkano::image::ImageUsage;
 use vulkano::image::SampleCount;
 use vulkano::memory::allocator::StandardMemoryAllocator;
+use vulkano::sync::AccessFlags;
+use vulkano::sync::ImageMemoryBarrier;
+use vulkano::sync::PipelineStage;
+use vulkano::sync::PipelineStages;
+use vulkano::sync::QueueFamilyOwnershipTransfer;
 use vulkano::sync::Sharing;
 
 use crate::graphics::GraphicsError;
 
+use super::buffer::Buffer;
+use super::command_buffer::CommandBuffer;
+
 /// Abstraction of the Vulkan Image and Image view.
 #[derive(Debug)]
 pub(super) struct Image {
-    pub _handle: Arc<vkImage>,
+    pub handle: Arc<vkImage>,
     pub view: Arc<vkImageView>,
 }
 
@@ -63,7 +80,7 @@ impl Image {
         let view = Self::create_image_view(image.clone(), format, view_aspects, usage)?;
 
         Ok(Self {
-            _handle: image,
+            handle: image,
             view,
         })
     }
@@ -131,5 +148,89 @@ impl Image {
         let view = vkImageView::new(image, info)?;
 
         Ok(view)
+    }
+
+    pub(super) fn _transition_layout(
+        &mut self,
+        queue: Arc<Queue>,
+        _command_buffer: &mut CommandBuffer,
+        old_layout: ImageLayout,
+        new_layout: ImageLayout,
+    ) -> Result<(), GraphicsError> {
+        let (src_stage, src_access, dst_stage, dst_access) = match (old_layout, new_layout) {
+            // Don't care about the old layout
+            // transition to optimal layout (for the underlying implementation).
+            (ImageLayout::Undefined, ImageLayout::TransferDstOptimal) => (
+                PipelineStage::TopOfPipe,
+                AccessFlags::empty(),
+                PipelineStage::AllTransfer,
+                AccessFlags::TRANSFER_WRITE,
+            ),
+
+            (ImageLayout::TransferDstOptimal, ImageLayout::ShaderReadOnlyOptimal) => (
+                PipelineStage::AllTransfer,
+                AccessFlags::TRANSFER_WRITE,
+                PipelineStage::FragmentShader,
+                AccessFlags::SHADER_READ,
+            ),
+
+            _ => return Err(GraphicsError::LayoutTransition(old_layout, new_layout)),
+        };
+
+        let _barrier = ImageMemoryBarrier {
+            src_stages: PipelineStages::from(src_stage),
+            src_access,
+            dst_stages: PipelineStages::from(dst_stage),
+            dst_access,
+            old_layout,
+            new_layout,
+            queue_family_ownership_transfer: Some(
+                QueueFamilyOwnershipTransfer::ExclusiveBetweenLocal {
+                    src_index: queue.queue_family_index(),
+                    dst_index: queue.queue_family_index(),
+                },
+            ),
+            subresource_range: ImageSubresourceRange {
+                aspects: ImageAspects::COLOR,
+                mip_levels: 0..1,
+                array_layers: 0..1,
+            },
+            ..ImageMemoryBarrier::image(self.handle.clone())
+        };
+
+        // TODO: how to use vkCmdPipelineBarrier
+
+        Ok(())
+    }
+
+    pub(super) fn copy_from_buffer(
+        &mut self,
+        // command_buffer_allocator: Arc<StandardMemoryAllocator>,
+        command_buffer: &mut CommandBuffer,
+        buffer: Buffer<u8>,
+    ) -> Result<(), GraphicsError> {
+        let region = BufferImageCopy {
+            buffer_offset: 0,
+            buffer_row_length: 0,
+            buffer_image_height: 0,
+            image_subresource: ImageSubresourceLayers {
+                aspects: ImageAspects::COLOR,
+                mip_level: 0,
+                array_layers: 0..1,
+            },
+            image_offset: [0; 3],
+            image_extent: self.handle.extent(),
+            ..Default::default()
+        };
+
+        command_buffer
+            .handle_mut()?
+            .copy_buffer_to_image(CopyBufferToImageInfo {
+                dst_image_layout: ImageLayout::TransferDstOptimal,
+                regions: [region].into(),
+                ..CopyBufferToImageInfo::buffer_image(buffer.handle().clone(), self.handle.clone())
+            })?;
+
+        Ok(())
     }
 }

@@ -1,7 +1,12 @@
+#[doc(hidden)]
+extern crate self as woody;
+
 pub mod app;
+pub mod camera;
 pub mod ecs;
 pub mod event;
 pub mod graphics;
+pub mod graphics2;
 pub mod input;
 mod systems;
 
